@@ -53,6 +53,7 @@ add_subdirectory(Joystick)
 add_subdirectory(MAVLink)
 add_subdirectory(MissionManager)
 add_subdirectory(PlanView)
+add_subdirectory(PointCloud)
 add_subdirectory(PositionManager)
 add_subdirectory(QmlControls)
 add_subdirectory(Settings)
@@ -152,6 +153,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE AutoPilotPluginsAPMModule)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE AutoPilotPluginsPX4Module)
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Viewer3DModule)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE PointCloudModule)
 
 # ============================================================================
 # Compile Definitions

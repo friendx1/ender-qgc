@@ -105,6 +105,16 @@ Item {
             property real bottomEdgeLeftInset: visible ? height + anchors.margins : 0
         }
 
+        // Live LiDAR point cloud window (Ender Robotics fork)
+        FlyViewPointCloud {
+            anchors.right:          parent.right
+            anchors.rightMargin:    _toolsMargin
+            anchors.bottom:         parent.bottom
+            anchors.bottomMargin:   _toolsMargin + widgetLayer.totalToolInsets.bottomEdgeRightInset
+            z:                      QGroundControl.zOrderWidgets
+            visible:                !QGroundControl.videoManager.fullScreen
+        }
+
         FlyViewWidgetLayer {
             id:                     widgetLayer
             anchors.top:            parent.top

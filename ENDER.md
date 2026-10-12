@@ -2,10 +2,19 @@
 
 Fork von QGroundControl (Basis: `Stable_V5.1`) für die Siyi UniRC 7 Pro.
 
-Geplante Änderung: ein zusätzliches Fenster in der Fly View, das die aktuelle LiDAR-Punktwolke
-der Drohne zeigt (Livox Mid-360, FAST-LIO2, Topic `/cloud_registered_body`). Die Punktwolke kommt
-per UDP (Port 19900, Format EPCL v1) vom ROS2-Node `ender_lidar_bridge` auf dem Onboard-PC.
+Änderung: ein zusätzliches Fenster in der Fly View, das die aktuelle LiDAR-Punktwolke der Drohne
+zeigt (Livox Mid-360, FAST-LIO2, Topic `/cloud_registered_body`). Die Punktwolke kommt per UDP
+(Port 19900, Format EPCL v1) vom ROS2-Node `ender_lidar_bridge` auf dem Onboard-PC.
 Das Format steht in `ros2/ender_lidar_bridge/ender_lidar_bridge/protocol.py` im Repo `friendx1/ender-gcs`.
+
+Aufbau (neu, alles Weitere bleibt Upstream):
+
+- `src/PointCloud/EpclFrameAssembler` setzt die UDP-Pakete zu kompletten Scans zusammen.
+- `src/PointCloud/PointCloudReceiver` lauscht auf UDP 19900 und hält den letzten Scan.
+- `src/PointCloud/PointCloudInstancing` zeichnet jeden Punkt als kleinen Würfel, nach Höhe eingefärbt.
+- `src/PointCloud/PointCloudQml/PointCloudView.qml` ist die 3D-Ansicht (Ziehen dreht, Mausrad/Pinch zoomt).
+- `src/FlyView/FlyViewPointCloud.qml` ist das Fenster rechts unten im Fly View mit Ein-/Ausblenden-Knopf.
+- Tests: `test/PointCloud/` (Label `PointCloud`).
 
 Verbindung zur Drohne: UniGCS auf der Funke auf UDP stellen, in QGC eine UDP-Verbindung mit Port 0
 und Server `192.168.144.20:19856` anlegen. Kein USB-C-Kabel an der Funke, es stört den Datenpfad.
