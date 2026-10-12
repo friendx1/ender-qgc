@@ -6,37 +6,17 @@ import QGroundControl.Controls
 Item {
     id: _root
 
-    property Item pipView
-    property Item pipState: videoPipState
+    property QtObject pipState: videoPipState
 
-    PipState {
-        id:         videoPipState
-        pipView:    _root.pipView
-        isDark:     true
-
-        onWindowAboutToOpen: {
-            QGroundControl.videoManager.stopVideo()
-            videoStartDelay.start()
-        }
-
-        onWindowAboutToClose: {
-            QGroundControl.videoManager.stopVideo()
-            videoStartDelay.start()
-        }
+    PipSlotState {
+        id:     videoPipState
+        isDark: true
 
         onStateChanged: {
-            if (pipState.state !== pipState.fullState) {
+            if (state !== fullState) {
                 QGroundControl.videoManager.fullScreen = false
             }
         }
-    }
-
-    Timer {
-        id:           videoStartDelay
-        interval:     2000;
-        running:      false
-        repeat:       false
-        onTriggered:  QGroundControl.videoManager.startVideo()
     }
 
     //-- Video Streaming

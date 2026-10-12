@@ -14,6 +14,7 @@ import QGroundControl.FlyView
 import QGroundControl.FlightMap
 import QGroundControl.Toolbar
 import QGroundControl.Viewer3D
+import QGroundControl.PointCloud
 
 Item {
     id: _root
@@ -66,6 +67,8 @@ Item {
         topEdgeRightInset:      topEdgeLeftInset
         leftEdgeBottomInset:    _pipView.leftEdgeBottomInset
         bottomEdgeLeftInset:    _pipView.bottomEdgeLeftInset
+        rightEdgeBottomInset:   _pipView.rightEdgeBottomInset
+        bottomEdgeRightInset:   _pipView.bottomEdgeRightInset
     }
 
     Item {
@@ -76,7 +79,6 @@ Item {
             id:                     mapControl
             planMasterController:   _planController
             rightPanelWidth:        ScreenTools.defaultFontPixelHeight * 9
-            pipView:                _pipView
             pipMode:                !_mainWindowIsMap
             toolInsets:             customOverlay.totalToolInsets
             mapName:                "FlightDisplayView"
@@ -86,33 +88,25 @@ Item {
 
         FlyViewVideo {
             id:         videoControl
-            pipView:    _pipView
         }
 
-        PipView {
-            id:                     _pipView
-            anchors.left:           parent.left
-            anchors.bottom:         parent.bottom
-            anchors.margins:        _toolsMargin
-            item1IsFullSettingsKey: "MainFlyWindowIsMap"
-            item1:                  mapControl
-            item2:                  QGroundControl.videoManager.hasVideo ? videoControl : null
-            show:                   QGroundControl.videoManager.hasVideo && !QGroundControl.videoManager.fullScreen &&
-                                        (videoControl.pipState.state === videoControl.pipState.pipState || mapControl.pipState.state === mapControl.pipState.pipState)
-            z:                      QGroundControl.zOrderWidgets
-
-            property real leftEdgeBottomInset: visible ? width + anchors.margins : 0
-            property real bottomEdgeLeftInset: visible ? height + anchors.margins : 0
+        // Live LiDAR point cloud (Ender Robotics fork)
+        PointCloudView {
+            id:         cloudControl
+            radius:     0
         }
 
-        // Live LiDAR point cloud window (Ender Robotics fork)
-        FlyViewPointCloud {
-            anchors.right:          parent.right
-            anchors.rightMargin:    _toolsMargin
-            anchors.bottom:         parent.bottom
-            anchors.bottomMargin:   _toolsMargin + widgetLayer.totalToolInsets.bottomEdgeRightInset
-            z:                      QGroundControl.zOrderWidgets
-            visible:                !QGroundControl.videoManager.fullScreen
+        // Video, map and point cloud: one fills the screen, the other two sit in small slots at the bottom
+        FlyViewPipLayout {
+            id:                 _pipView
+            anchors.fill:       parent
+            z:                  QGroundControl.zOrderWidgets + 1
+            mapItem:            mapControl
+            videoItem:          videoControl
+            cloudItem:          cloudControl
+            videoAvailable:     QGroundControl.videoManager.hasVideo
+            showSlots:          !QGroundControl.videoManager.fullScreen
+            margin:             _toolsMargin
         }
 
         FlyViewWidgetLayer {

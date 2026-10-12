@@ -19,8 +19,7 @@ FlightMap {
     zoomLevel:                  QGroundControl.flightMapZoom
     center:                     QGroundControl.flightMapPosition
 
-    property Item   pipView
-    property Item   pipState:                   _pipState
+    property QtObject pipState:                 _pipState
     property var    rightPanelWidth
     property var    planMasterController
     property bool   pipMode:                    false   // true: map is shown in a small pip mode
@@ -187,9 +186,8 @@ FlightMap {
         }
     }
 
-    PipState {
+    PipSlotState {
         id:         _pipState
-        pipView:    _root.pipView
         isDark:     _isFullWindowItemDark
     }
 

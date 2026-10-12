@@ -13,7 +13,7 @@ Aufbau (neu, alles Weitere bleibt Upstream):
 - `src/PointCloud/PointCloudReceiver` lauscht auf UDP 19900 und hält den letzten Scan.
 - `src/PointCloud/PointCloudInstancing` zeichnet jeden Punkt als kleinen Würfel, nach Höhe eingefärbt.
 - `src/PointCloud/PointCloudQml/PointCloudView.qml` ist die 3D-Ansicht (Ziehen dreht, Mausrad/Pinch zoomt).
-- `src/FlyView/FlyViewPointCloud.qml` ist das Fenster rechts unten im Fly View mit Ein-/Ausblenden-Knopf.
+- `src/FlyView/FlyViewPipLayout.qml` ordnet Video, Karte und Punktwolke im Fly View an: ein Fenster groß, die anderen beiden klein unten links und unten rechts. Klick auf ein kleines Fenster tauscht es mit dem großen, die Größe wird an der Ecke gezogen. Es ersetzt `PipView` im Fly View. `PipSlotState.qml` ersetzt dort `PipState`. Kompass und Telemetrie liegen unten in der Mitte (`FlyViewWidgetLayer.qml`).
 - Tests: `test/PointCloud/` (Label `PointCloud`).
 
 Verbindung zur Drohne: UniGCS auf der Funke auf UDP stellen, in QGC eine UDP-Verbindung mit Port 0
