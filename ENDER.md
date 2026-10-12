@@ -54,3 +54,26 @@ APK bauen und aufspielen:
 2. Auf der Seite des Laufs unter **Artifacts** `QGroundControl-linux` herunterladen und entpacken.
 3. Funke per USB anschließen und installieren: `adb install -r pfad\zur\QGroundControl.apk`.
 4. USB-Kabel abziehen, erst dann in QGC verbinden (UDP, Port 0, Server `192.168.144.20:19856`).
+
+## Desktop-Build auf Windows (schnelles UI-Entwickeln am PC)
+
+Ziel: Änderungen am Fly View am PC bauen und sofort ansehen. Die Android-APK über GitHub ist nur noch der Endtest auf der Funke.
+Es gilt Qt **6.11.1** (nur diese Version, siehe `.github/build-config.json`).
+
+Einmalig einrichten:
+1. Git und Python 3 installieren (falls nicht vorhanden).
+2. Visual Studio 2022 Build Tools mit der Workload "C++ build tools" installieren. Das geht auch mit `python tools/setup/install_dependencies --platform windows --msvc`.
+3. Qt 6.11.1 mit dem Qt Online Installer (Qt-Konto nötig): "Custom Installation", Haken bei "Archive", dann Qt 6.11.1 -> "MSVC 2022 64-bit" und alle "Additional Libraries" (darin Qt Quick 3D, Qt Graphs, Qt Location, Qt Multimedia, Qt Speech u. a.). Qt Design Studio abwählen.
+4. GStreamer (Video): `python tools/setup/install_dependencies --platform windows` aus dem Repo-Ordner. CMake lädt es sonst beim Konfigurieren selbst.
+5. CMake und Ninja installieren (liegen auch im Qt-Installer unter "Tools").
+6. Fork mit Unterordnern klonen: `git clone --recurse-submodules https://github.com/friendx1/ender-qgc.git`, dann `git checkout ender/pointcloud`.
+
+Bauen und starten (in der "x64 Native Tools Command Prompt for VS 2022", im Repo-Ordner):
+```
+C:\Qt\6.11.1\msvc2022_64\bin\qt-cmake.bat -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --config Debug
+build\Debug\QGroundControl.exe
+```
+Nach einer Änderung reicht `cmake --build build --config Debug` (baut nur das Geänderte neu).
+
+Punktwolke ohne Drohne testen: `python ros2/ender_lidar_bridge/tools/fake_sender.py` (Repo ender-gcs) sendet Testdaten an 127.0.0.1:19900. QGC hört darauf, sobald das Punktwolken-Fenster sichtbar ist.
