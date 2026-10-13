@@ -60,20 +60,35 @@ APK bauen und aufspielen:
 Ziel: Änderungen am Fly View am PC bauen und sofort ansehen. Die Android-APK über GitHub ist nur noch der Endtest auf der Funke.
 Es gilt Qt **6.11.1** (nur diese Version, siehe `.github/build-config.json`).
 
-Einmalig einrichten:
-1. Git und Python 3 installieren (falls nicht vorhanden).
-2. Visual Studio 2022 Build Tools mit der Workload "C++ build tools" installieren. Das geht auch mit `python tools/setup/install_dependencies --platform windows --msvc`.
-3. Qt 6.11.1 mit dem Qt Online Installer (Qt-Konto nötig): "Custom Installation", Haken bei "Archive", dann Qt 6.11.1 -> "MSVC 2022 64-bit" und alle "Additional Libraries" (darin Qt Quick 3D, Qt Graphs, Qt Location, Qt Multimedia, Qt Speech u. a.). Qt Design Studio abwählen.
-4. GStreamer (Video): `python tools/setup/install_dependencies --platform windows` aus dem Repo-Ordner. CMake lädt es sonst beim Konfigurieren selbst.
-5. CMake und Ninja installieren (liegen auch im Qt-Installer unter "Tools").
-6. Fork mit Unterordnern klonen: `git clone --recurse-submodules https://github.com/friendx1/ender-qgc.git`, dann `git checkout ender/pointcloud`.
+Einmalig einrichten (so auf zwei Rechnern getestet, Windows 11):
+1. **Defender-Ausnahme** für `C:\dev` anlegen (Windows-Sicherheit -> Viren- & Bedrohungsschutz -> Ausschlüsse). Ohne sie hing der moc-Schritt auf dem Laptop sehr lange.
+2. Git und Python von python.org installieren (3.13.0 und 3.14.6 liefen beide; "Add to PATH" anhaken, nicht den Store-Python verwenden).
+3. **Visual Studio Build Tools 2022** (17.14, nicht 2026) mit der Workload "Desktopentwicklung mit C++". Sie bringen CMake 3.31 und Ninja mit.
+4. **Qt 6.11.1** (nur diese Version) mit dem Qt Online Installer: "Benutzerdefinierte Installation", Haken bei "Archive", dann nur MSVC 2022 64-bit und die Zusatzbibliotheken Graphs, Location, Positioning, Speech, Multimedia, Serial Port, Image Formats, Shader Tools, Connectivity, Quick 3D, Sensors, State Machines (= SCXML), WebSockets, HTTP Server.
+5. Repo klonen: `git clone --recurse-submodules https://github.com/friendx1/ender-qgc.git C:\dev\ender-qgc`, dann `git checkout ender/pointcloud`.
+6. Eigenes CMake nicht installieren: CMake ab 4.1 scheitert an zstd. Die CMake aus den Build Tools (3.31.6) verwenden. GStreamer lädt und installiert CMake beim Konfigurieren selbst.
 
-Bauen und starten (in der "x64 Native Tools Command Prompt for VS 2022", im Repo-Ordner):
+Bauen (im **"x64 Native Tools Command Prompt for VS 2022"**, nicht im x86-Prompt und nicht in PowerShell). Zur Kontrolle: `echo %VSCMD_ARG_TGT_ARCH%` muss `x64` zeigen.
 ```
-C:\Qt\6.11.1\msvc2022_64\bin\qt-cmake.bat -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --config Debug
-build\Debug\QGroundControl.exe
+cd /d C:\dev\ender-qgc
+set CM="C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+%CM% -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=C:\Qt\6.11.1\msvc2022_64 -DCMAKE_TOOLCHAIN_FILE=C:\Qt\6.11.1\msvc2022_64\lib\cmake\Qt6\qt.toolchain.cmake
+%CM% --build build
 ```
-Nach einer Änderung reicht `cmake --build build --config Debug` (baut nur das Geänderte neu).
+Der Configure legt die Python-Umgebung `.venv` an und installiert GStreamer still (ca. 6 Minuten, nicht abbrechen). Meldet er `.venv has no pip`: `.venv\Scripts\python.exe -m ensurepip --upgrade` und den Configure wiederholen. Nach einem Fehler im Configure vorher `rmdir /s /q build`. `qt-cmake.bat` ging auf dem Laptop nicht (Abbruch ohne Meldung), deshalb der direkte Aufruf.
 
-Punktwolke ohne Drohne testen: `python ros2/ender_lidar_bridge/tools/fake_sender.py` (Repo ender-gcs) sendet Testdaten an 127.0.0.1:19900. QGC hört darauf, sobald das Punktwolken-Fenster sichtbar ist.
+Der erste Build hat 760 Schritte. Der Schritt "Automatic MOC and UIC for target QGroundControl" gibt lange keine Ausgabe, das ist normal.
+
+Starten: Die App findet Qt und GStreamer nicht von selbst. Lege `C:\dev\run-qgc.bat` an:
+```
+@echo off
+set PATH=C:\dev\ender-qgc\.cache\CPM\gstreamer-win-x86_64-1.28.4\sdk\bin;C:\Qt\6.11.1\msvc2022_64\bin;%PATH%
+C:\dev\ender-qgc\build\Debug\QGroundControl.exe
+```
+Nach einer Änderung im Code reicht `%CM% --build build` (baut nur das Geänderte neu), dann `C:\dev\run-qgc.bat`.
+
+Punktwolke ohne Drohne testen (Repo ender-gcs nach `C:\dev\ender-gcs` klonen, einmal `python -m pip install numpy`):
+```
+python C:\dev\ender-gcs\ros2\ender_lidar_bridge\tools\fake_sender.py --ip 127.0.0.1 --port 19900 --hz 5.0 --points 3000
+```
+QGC hört auf UDP 19900, sobald das Punktwolken-Fenster sichtbar ist. Beim ersten Start fragt die Windows-Firewall, dort private Netzwerke erlauben.
