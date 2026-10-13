@@ -2,6 +2,7 @@
 
 #include <QtCore/QDateTime>
 #include <QtNetwork/QHostAddress>
+#include <QtNetwork/QNetworkDatagram>
 
 #include "QGCLoggingCategory.h"
 
