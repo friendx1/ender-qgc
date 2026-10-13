@@ -66,7 +66,7 @@ Einmalig einrichten (so auf zwei Rechnern getestet, Windows 11):
 3. **Visual Studio Build Tools 2022** (17.14, nicht 2026) mit der Workload "Desktopentwicklung mit C++". Sie bringen CMake 3.31 und Ninja mit.
 4. **Qt 6.11.1** (nur diese Version) mit dem Qt Online Installer: "Benutzerdefinierte Installation", Haken bei "Archive", dann nur MSVC 2022 64-bit und die Zusatzbibliotheken Graphs, Location, Positioning, Speech, Multimedia, Serial Port, Image Formats, Shader Tools, Connectivity, Quick 3D, Sensors, State Machines (= SCXML), WebSockets, HTTP Server.
 5. Repo klonen: `git clone --recurse-submodules https://github.com/friendx1/ender-qgc.git C:\dev\ender-qgc`, dann `git checkout ender/pointcloud`.
-6. Eigenes CMake nicht installieren: CMake ab 4.1 scheitert an zstd. Die CMake aus den Build Tools (3.31.6) verwenden. GStreamer lädt und installiert CMake beim Konfigurieren selbst.
+6. Eigenes CMake nicht installieren: CMake ab 4.1 scheitert an zstd. Die CMake aus den Build Tools (3.31.6) verwenden. CMake lädt und installiert GStreamer beim Konfigurieren selbst.
 
 Bauen (im **"x64 Native Tools Command Prompt for VS 2022"**, nicht im x86-Prompt und nicht in PowerShell). Zur Kontrolle: `echo %VSCMD_ARG_TGT_ARCH%` muss `x64` zeigen.
 ```
