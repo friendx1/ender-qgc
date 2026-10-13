@@ -5,7 +5,7 @@ Fork von QGroundControl (Basis: `Stable_V5.1`) für die Siyi UniRC 7 Pro.
 Änderung: ein zusätzliches Fenster in der Fly View, das die aktuelle LiDAR-Punktwolke der Drohne
 zeigt (Livox Mid-360, FAST-LIO2, Topic `/cloud_registered_body`). Die Punktwolke kommt per UDP
 (Port 19900, Format EPCL v1) vom ROS2-Node `ender_lidar_bridge` auf dem Onboard-PC.
-Das Format steht in `ros2/ender_lidar_bridge/ender_lidar_bridge/protocol.py` im Repo `friendx1/ender-gcs`.
+Das Format steht in `ender/ros2/ender_lidar_bridge/ender_lidar_bridge/protocol.py` (dort liegt auch die Node selbst).
 
 Aufbau (neu, alles Weitere bleibt Upstream):
 
@@ -87,8 +87,8 @@ C:\dev\ender-qgc\build\Debug\QGroundControl.exe
 ```
 Nach einer Änderung im Code reicht `%CM% --build build` (baut nur das Geänderte neu), dann `C:\dev\run-qgc.bat`.
 
-Punktwolke ohne Drohne testen (Repo ender-gcs nach `C:\dev\ender-gcs` klonen, einmal `python -m pip install numpy`):
+Punktwolke ohne Drohne testen (einmal `python -m pip install numpy`):
 ```
-python C:\dev\ender-gcs\ros2\ender_lidar_bridge\tools\fake_sender.py --ip 127.0.0.1 --port 19900 --hz 5.0 --points 3000
+python C:\dev\ender-qgc\ender\ros2\ender_lidar_bridge\tools\fake_sender.py --ip 127.0.0.1 --port 19900 --hz 5.0 --points 3000
 ```
 QGC hört auf UDP 19900, sobald das Punktwolken-Fenster sichtbar ist. Beim ersten Start fragt die Windows-Firewall, dort private Netzwerke erlauben.

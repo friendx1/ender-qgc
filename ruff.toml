@@ -13,6 +13,7 @@ exclude = [
     ".venv",
     "**/.venv",
     "tools/skills",
+    "ender/ros2",  # ROS2 bridge for the onboard PC, not part of the QGC tooling
 ]
 
 [lint]
