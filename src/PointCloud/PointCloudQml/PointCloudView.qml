@@ -46,6 +46,7 @@ Rectangle {
     readonly property bool _roomy: width >= 360 && height >= 240
     readonly property bool _controlsVisible: interactive && _roomy
     readonly property real _buttonHeight: Math.max(44, Math.min(60, height * 0.12))
+    readonly property real _buttonWidth: Math.max(140, _buttonHeight * 2.8)
 
     color: "#10151a"
     clip: true
@@ -312,11 +313,11 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: 8
         spacing: 8
-        horizontalItemAlignment: Grid.AlignRight
         visible: root._controlsVisible
 
         GoalButton {
             id: enterButton
+            width: root._buttonWidth
             height: root._buttonHeight
             visible: !root.goalMode
             dimmed: !cloudReceiver.receiving
@@ -324,6 +325,7 @@ Rectangle {
         }
         GoalButton {
             id: sendButton
+            width: root._buttonWidth
             height: root._buttonHeight
             visible: root.goalMode
             primary: true
@@ -333,6 +335,7 @@ Rectangle {
 
         GoalButton {
             id: cancelButton
+            width: root._buttonWidth
             height: root._buttonHeight
             visible: root.goalMode
             label: qsTr("Abbrechen")
