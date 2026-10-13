@@ -306,20 +306,22 @@ Rectangle {
         }
     }
 
-    Row {
+    // At the right edge, centered: the small slots of the Fly View cover the bottom corners
+    Column {
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 8
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.rightMargin: 8
         spacing: 8
+        horizontalItemAlignment: Grid.AlignRight
         visible: root._controlsVisible
 
         GoalButton {
-            id: cancelButton
+            id: enterButton
             height: root._buttonHeight
-            visible: root.goalMode
-            label: qsTr("Abbrechen")
+            visible: !root.goalMode
+            dimmed: !cloudReceiver.receiving
+            label: qsTr("Ziel wählen")
         }
-
         GoalButton {
             id: sendButton
             height: root._buttonHeight
@@ -330,11 +332,10 @@ Rectangle {
         }
 
         GoalButton {
-            id: enterButton
+            id: cancelButton
             height: root._buttonHeight
-            visible: !root.goalMode
-            dimmed: !cloudReceiver.receiving
-            label: qsTr("Ziel wählen")
+            visible: root.goalMode
+            label: qsTr("Abbrechen")
         }
     }
 
