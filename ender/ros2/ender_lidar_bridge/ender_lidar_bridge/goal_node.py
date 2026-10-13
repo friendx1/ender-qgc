@@ -31,7 +31,7 @@ class GoalNode(Node):
         self.declare_parameter("goal_frame", "camera_init")
         self.declare_parameter("goal_z", 1.5)            # SUPER überschreibt z mit fsm/click_height
         self.declare_parameter("max_distance", 40.0)     # Meter von der Drohne zum Ziel
-        self.declare_parameter("max_age_s", 3.0)         # so alt darf der Scan beim Klick höchstens sein
+        self.declare_parameter("max_age_s", 20.0)        # so alt darf der Scan beim Senden höchstens sein (er ist beim Wählen eingefroren)
         self.declare_parameter("max_pose_gap_s", 0.3)    # größter Abstand zwischen Scan und nächster Pose
 
         p = self.get_parameter

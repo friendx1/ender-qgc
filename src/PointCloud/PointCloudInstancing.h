@@ -20,6 +20,8 @@ class PointCloudInstancing : public QQuick3DInstancing
     QML_ELEMENT
     Q_PROPERTY(PointCloudReceiver* receiver READ receiver WRITE setReceiver NOTIFY receiverChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(bool frozen READ frozen WRITE setFrozen NOTIFY frozenChanged)
+    Q_PROPERTY(quint32 stampMs READ stampMs NOTIFY stampMsChanged)
     Q_PROPERTY(float pointSize READ pointSize WRITE setPointSize NOTIFY pointSizeChanged)
     Q_PROPERTY(float heightMin READ heightMin WRITE setHeightMin NOTIFY heightRangeChanged)
     Q_PROPERTY(float heightMax READ heightMax WRITE setHeightMax NOTIFY heightRangeChanged)
@@ -34,6 +36,14 @@ public:
     void setReceiver(PointCloudReceiver* receiver);
 
     int count() const { return static_cast<int>(_frame.points.size()); }
+
+    /// While frozen, new scans are kept back and the displayed scan stays as it is. Unfreezing shows the latest scan.
+    bool frozen() const { return _frozen; }
+
+    void setFrozen(bool frozen);
+
+    /// Stamp of the displayed scan, as sent by the vehicle
+    quint32 stampMs() const { return _frame.stampMs; }
 
     /// Edge length of each point cube in centimeters
     float pointSize() const { return _pointSize; }
@@ -58,6 +68,8 @@ public:
 signals:
     void receiverChanged();
     void countChanged();
+    void frozenChanged();
+    void stampMsChanged();
     void pointSizeChanged();
     void heightRangeChanged();
 
@@ -72,6 +84,7 @@ private:
     EpclFrame _frame;
     QByteArray _instanceData;
     bool _dirty = false;
+    bool _frozen = false;
     float _pointSize = 4.0f;
     float _heightMin = -1.5f;
     float _heightMax = 2.5f;

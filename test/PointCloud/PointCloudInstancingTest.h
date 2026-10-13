@@ -12,4 +12,5 @@ private slots:
     void _testSetFrameBuffer();
     void _testHeightColors();
     void _testPointSizeMarksDirty();
+    void _testFrozenAndStamp();
 };

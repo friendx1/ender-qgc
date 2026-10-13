@@ -72,7 +72,7 @@ class GoalLogicTest(unittest.TestCase):
         self.assertAlmostEqual(d.world_y, 1.0, places=6)
 
     def test_rejects_stale_scan(self):
-        h = self.history(Pose(1_000, (0.0, 0.0, 0.0), yaw_quat(0)), Pose(9_000, (0.0, 0.0, 0.0), yaw_quat(0)))
+        h = self.history(Pose(1_000, (0.0, 0.0, 0.0), yaw_quat(0)), Pose(31_000, (0.0, 0.0, 0.0), yaw_quat(0)))
         self.assertEqual(evaluate_goal(Goal(1, 1_000, 1.0, 0.0), h).status, STATUS_STALE)
 
     def test_rejects_too_far(self):

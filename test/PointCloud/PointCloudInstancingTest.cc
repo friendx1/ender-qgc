@@ -81,3 +81,29 @@ void PointCloudInstancingTest::_testPointSizeMarksDirty()
     QVERIFY(!inst._dirty);
     QCOMPARE_FUZZY(inst.pointSize(), 8.0f, 1e-4f);
 }
+
+void PointCloudInstancingTest::_testFrozenAndStamp()
+{
+    PointCloudInstancing inst;
+    QSignalSpy frozenSpy(&inst, &PointCloudInstancing::frozenChanged);
+    QSignalSpy stampSpy(&inst, &PointCloudInstancing::stampMsChanged);
+
+    QVERIFY(!inst.frozen());
+    QCOMPARE(inst.stampMs(), quint32(0));
+
+    EpclFrame frame;
+    frame.stampMs = 4242;
+    frame.points = {QVector3D(1, 0, 0)};
+    inst.setFrame(frame);
+    QCOMPARE(inst.stampMs(), quint32(4242));
+    QCOMPARE(stampSpy.count(), 1);
+
+    inst.setFrozen(true);
+    inst.setFrozen(true);  // no change, no signal
+    QVERIFY(inst.frozen());
+    QCOMPARE(frozenSpy.count(), 1);
+
+    inst.setFrozen(false);
+    QVERIFY(!inst.frozen());
+    QCOMPARE(frozenSpy.count(), 2);
+}

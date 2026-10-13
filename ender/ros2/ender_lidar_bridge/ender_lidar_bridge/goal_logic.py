@@ -30,7 +30,7 @@ class Pose:
 class PoseHistory:
     """Kurzer Verlauf der Drohnenposen (aus /Odometry), um die Pose zum Scan-Zeitpunkt zu finden."""
 
-    def __init__(self, maxlen: int = 400) -> None:
+    def __init__(self, maxlen: int = 1000) -> None:
         self._poses: Deque[Pose] = deque(maxlen=maxlen)
 
     def add(self, pose: Pose) -> None:
@@ -92,7 +92,7 @@ def evaluate_goal(
     goal: Goal,
     history: PoseHistory,
     max_distance: float = 40.0,
-    max_age_ms: int = 3000,
+    max_age_ms: int = 20000,
     max_pose_gap_ms: int = 300,
 ) -> Decision:
     """Entscheidet, ob ein Ziel angenommen wird, und rechnet es ins Weltsystem um."""

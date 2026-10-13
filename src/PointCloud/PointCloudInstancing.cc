@@ -70,11 +70,24 @@ void PointCloudInstancing::setFrame(const EpclFrame& frame)
     _dirty = true;
     markDirty();
     emit countChanged();
+    emit stampMsChanged();
+}
+
+void PointCloudInstancing::setFrozen(bool frozen)
+{
+    if (_frozen == frozen) {
+        return;
+    }
+    _frozen = frozen;
+    emit frozenChanged();
+    if (!_frozen && _receiver) {
+        setFrame(_receiver->latestFrame());
+    }
 }
 
 void PointCloudInstancing::_onFrameReceived()
 {
-    if (_receiver) {
+    if (_receiver && !_frozen) {
         setFrame(_receiver->latestFrame());
     }
 }

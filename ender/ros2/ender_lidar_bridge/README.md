@@ -52,7 +52,7 @@ ros2 run ender_lidar_bridge goal_node
 | `goal_frame` | `camera_init` | Frame im Header (SUPER liest nur die Zahlen) |
 | `goal_z` | `1.5` | z im Ziel (SUPER überschreibt es) |
 | `max_distance` | `40.0` | weiter entfernte Ziele werden abgelehnt (m) |
-| `max_age_s` | `3.0` | so alt darf der Scan beim Klick höchstens sein |
+| `max_age_s` | `20.0` | so alt darf der Scan beim Senden höchstens sein (die Bodenstation friert ihn beim Wählen ein) |
 | `max_pose_gap_s` | `0.3` | größter Abstand zwischen Scan und nächster Pose |
 
 Ohne Drohne testen: `python3 tools/fake_goal_receiver.py --port 19901` nimmt Ziele an und bestätigt sie.

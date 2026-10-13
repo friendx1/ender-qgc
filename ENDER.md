@@ -14,6 +14,8 @@ Aufbau (neu, alles Weitere bleibt Upstream):
 - `src/PointCloud/PointCloudInstancing` zeichnet jeden Punkt als kleinen Würfel, nach Höhe eingefärbt.
 - `src/PointCloud/PointCloudQml/PointCloudView.qml` ist die 3D-Ansicht (Ziehen dreht, Mausrad/Pinch zoomt).
 - `src/FlyView/FlyViewPipLayout.qml` ordnet Video, Karte und Punktwolke im Fly View an: ein Fenster groß, die anderen beiden klein unten links und unten rechts. Klick auf ein kleines Fenster tauscht es mit dem großen, die Größe wird an der Ecke gezogen. Es ersetzt `PipView` im Fly View. `PipSlotState.qml` ersetzt dort `PipState`. Kompass und Telemetrie liegen unten in der Mitte (`FlyViewWidgetLayer.qml`).
+- `src/PointCloud/GoalProtocol` und `GoalSender` schicken ein angeklicktes Flugziel per UDP (Port 19901, Format EGOL v1) an den Onboard-PC und warten auf die Bestätigung. Die Node `goal_node` dort rechnet das Ziel ins Weltsystem um und gibt es an SUPER (`/goal_pose`), siehe `ender/ros2/ender_lidar_bridge/README.md`.
+- Zielmodus in `PointCloudView.qml`: Knopf "Ziel wählen" friert den Scan ein und zeigt ihn von oben, Antippen setzt den Zielpunkt, "Senden" schickt ihn. Die Adresse des Onboard-PCs ist `192.168.144.50`, für Tests am PC kann sie mit der Umgebungsvariable `ENDER_GOAL_HOST` überschrieben werden.
 - Tests: `test/PointCloud/` (Label `PointCloud`).
 
 Verbindung zur Drohne: UniGCS auf der Funke auf UDP stellen, in QGC eine UDP-Verbindung mit Port 0
@@ -92,3 +94,5 @@ Punktwolke ohne Drohne testen (einmal `python -m pip install numpy`):
 python C:\dev\ender-qgc\ender\ros2\ender_lidar_bridge\tools\fake_sender.py --ip 127.0.0.1 --port 19900 --hz 5.0 --points 3000
 ```
 QGC hört auf UDP 19900, sobald das Punktwolken-Fenster sichtbar ist. Beim ersten Start fragt die Windows-Firewall, dort private Netzwerke erlauben.
+
+Flugziel ohne Drohne testen: `python ender\ros2\ender_lidar_bridge\tools\fake_goal_receiver.py --port 19901` nimmt Ziele an und bestätigt sie. In `run-qgc.bat` vor dem Start der App `set ENDER_GOAL_HOST=127.0.0.1` einfügen.

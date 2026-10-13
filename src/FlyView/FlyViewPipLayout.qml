@@ -191,6 +191,16 @@ Item {
         }
     }
 
+    // While the point cloud sits in a small slot its taps belong to the slot (swap, resize),
+    // so the view must not react to them itself
+    Binding {
+        when:           _root.cloudItem !== null
+        target:         _root.cloudItem
+        property:       "interactive"
+        value:          _root._slotNames.indexOf("cloud") === 0
+        restoreMode:    Binding.RestoreNone
+    }
+
     SlotPlacer {
         target:     _root.mapItem
         slot:       _root._slotNames.indexOf("map")

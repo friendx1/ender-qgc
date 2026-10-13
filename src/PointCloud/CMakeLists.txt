@@ -19,6 +19,10 @@ qt_add_qml_module(PointCloudModule
     SOURCES
         EpclFrameAssembler.cc
         EpclFrameAssembler.h
+        GoalProtocol.cc
+        GoalProtocol.h
+        GoalSender.cc
+        GoalSender.h
         PointCloudInstancing.cc
         PointCloudInstancing.h
         PointCloudReceiver.cc
