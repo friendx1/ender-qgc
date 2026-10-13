@@ -2,12 +2,14 @@
 <package format="3">
   <name>ender_lidar_bridge</name>
   <version>0.1.0</version>
-  <description>Schickt die FAST-LIO2-Punktwolke ausgedünnt per UDP zur Bodenstation</description>
+  <description>Schickt die FAST-LIO2-Punktwolke ausgedünnt per UDP zur Bodenstation und nimmt Flugziele von dort an</description>
   <maintainer email="finn.kerwien8476@gmail.com">Finn Kerwien</maintainer>
   <license>Apache-2.0</license>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>sensor_msgs_py</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
   <export>
     <build_type>ament_python</build_type>
   </export>

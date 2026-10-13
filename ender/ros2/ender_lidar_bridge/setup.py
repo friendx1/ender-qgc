@@ -12,5 +12,10 @@ setup(
     ],
     install_requires=["setuptools", "numpy"],
     zip_safe=True,
-    entry_points={"console_scripts": ["bridge_node = ender_lidar_bridge.bridge_node:main"]},
+    entry_points={
+        "console_scripts": [
+            "bridge_node = ender_lidar_bridge.bridge_node:main",
+            "goal_node = ender_lidar_bridge.goal_node:main",
+        ]
+    },
 )

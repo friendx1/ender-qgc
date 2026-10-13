@@ -7,8 +7,8 @@ ROS2-Node (Python), der die Punktwolke von FAST-LIO2 ausdünnt und per UDP zur B
 
 ```
 mkdir -p ~/ender_ws/src && cd ~/ender_ws/src
-git clone https://github.com/friendx1/ender-gcs.git   # oder bereits vorhanden
-ln -s ender-gcs/ros2/ender_lidar_bridge .
+git clone https://github.com/friendx1/ender-qgc.git   # oder bereits vorhanden
+ln -s ender-qgc/ender/ros2/ender_lidar_bridge .
 cd ~/ender_ws && colcon build --packages-select ender_lidar_bridge
 source install/setup.bash
 ros2 run ender_lidar_bridge bridge_node --ros-args -p dest_ip:=192.168.144.20
@@ -31,6 +31,31 @@ Der Onboard-PC braucht eine eigene feste IP im Netz 192.168.144.x (z. B. 192.168
 | `send_intensity` | `false` | Intensität mitsenden (+1 Byte je Punkt) |
 
 Alle 5 Sekunden steht im Log, wie viele Scans, Punkte und Mbit/s tatsächlich gesendet werden.
+
+## Flugziele von der Bodenstation (goal_node)
+
+Die Bodenstation schickt ein angeklicktes Ziel per UDP (Port 19901, Format EGOL v1, siehe
+`ender_lidar_bridge/goal_protocol.py`). Die Node `goal_node` rechnet es mit der Pose zum
+Scan-Zeitpunkt (aus `/Odometry`) ins Weltsystem um, prüft es und publiziert eine `PoseStamped`
+auf `/goal_pose`, das Topic, auf das SUPER hört (`fsm/click_goal_topic`). Danach bestätigt
+sie dem Absender per UDP (EGOA). SUPER setzt die Flughöhe selbst (`fsm/click_height`).
+
+```
+ros2 run ender_lidar_bridge goal_node
+```
+
+| Parameter | Standard | Bedeutung |
+|---|---|---|
+| `listen_port` | `19901` | UDP-Port für Ziele |
+| `odom_topic` | `/Odometry` | Pose der Drohne (FAST-LIO2) |
+| `goal_topic` | `/goal_pose` | Ausgang, Eingang von SUPER |
+| `goal_frame` | `camera_init` | Frame im Header (SUPER liest nur die Zahlen) |
+| `goal_z` | `1.5` | z im Ziel (SUPER überschreibt es) |
+| `max_distance` | `40.0` | weiter entfernte Ziele werden abgelehnt (m) |
+| `max_age_s` | `3.0` | so alt darf der Scan beim Klick höchstens sein |
+| `max_pose_gap_s` | `0.3` | größter Abstand zwischen Scan und nächster Pose |
+
+Ohne Drohne testen: `python3 tools/fake_goal_receiver.py --port 19901` nimmt Ziele an und bestätigt sie.
 
 ## Tests (ohne ROS)
 
