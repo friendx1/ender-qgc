@@ -4,7 +4,7 @@ import QtQuick3D
 import QGroundControl.PointCloud
 
 /// Live LiDAR point cloud seen from outside the vehicle. The vehicle sits at the center
-/// and always points up on the screen. Drag to rotate, wheel or pinch to zoom.
+/// and always points up on the screen. One finger or the mouse rotates, wheel or two fingers zoom.
 Rectangle {
     id: root
 
@@ -73,31 +73,44 @@ Rectangle {
         }
     }
 
-    DragHandler {
-        target: null
-        onCentroidChanged: {
-            if (active) {
-                root._yaw -= (centroid.position.x - centroid.lastPosition.x) * 0.4
-                root._pitch = Math.max(-89, Math.min(-5, root._pitch + (centroid.position.y - centroid.lastPosition.y) * -0.4))
-            }
-        }
-    }
-
     WheelHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: (event) => root._zoomBy(event.angleDelta.y > 0 ? 0.9 : 1.1)
     }
 
-    PinchHandler {
-        target: null
-        property real _lastScale: 1
-        onActiveChanged: _lastScale = 1
-        onScaleChanged: {
-            if (active && scale > 0) {
-                root._zoomBy(_lastScale / scale)
-                _lastScale = scale
+    // One finger (or the mouse) rotates, two fingers zoom. A MultiPointTouchArea is used because
+    // it is also what the on-screen joystick uses, and it receives single touches on the radio.
+    MultiPointTouchArea {
+        id: touchArea
+        anchors.fill: parent
+        minimumTouchPoints: 1
+        maximumTouchPoints: 2
+        mouseEnabled: true
+
+        property real _lastPinchDistance: 0
+
+        touchPoints: [
+            TouchPoint { id: touchA },
+            TouchPoint { id: touchB }
+        ]
+
+        onUpdated: {
+            if (touchA.pressed && touchB.pressed) {
+                var distance = Math.hypot(touchA.x - touchB.x, touchA.y - touchB.y)
+                if (_lastPinchDistance > 0 && distance > 0) {
+                    root._zoomBy(_lastPinchDistance / distance)
+                }
+                _lastPinchDistance = distance
+            } else if (touchA.pressed || touchB.pressed) {
+                _lastPinchDistance = 0
+                var finger = touchA.pressed ? touchA : touchB
+                root._yaw -= (finger.x - finger.previousX) * 0.4
+                root._pitch = Math.max(-89, Math.min(-5, root._pitch + (finger.y - finger.previousY) * -0.4))
             }
         }
+
+        onReleased: _lastPinchDistance = 0
+        onCanceled: _lastPinchDistance = 0
     }
 
     function _zoomBy(factor) {
