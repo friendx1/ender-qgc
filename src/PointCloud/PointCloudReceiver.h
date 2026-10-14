@@ -26,6 +26,7 @@ class PointCloudReceiver : public QObject
 public:
     static constexpr quint16 kDefaultPort = 19900;
     static constexpr int kReceivingTimeoutMs = 2000;
+    static constexpr int kReceiveBufferBytes = 2 * 1024 * 1024;
 
     explicit PointCloudReceiver(QObject* parent = nullptr);
     ~PointCloudReceiver() override;

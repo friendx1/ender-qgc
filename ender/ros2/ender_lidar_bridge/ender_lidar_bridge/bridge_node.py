@@ -29,6 +29,7 @@ class BridgeNode(Node):
         self.declare_parameter("max_rate_hz", 5.0)    # höchstens so viele Scans pro Sekunde senden
         self.declare_parameter("max_range", 40.0)     # Meter, weiter entfernte Punkte werden verworfen
         self.declare_parameter("send_intensity", False)
+        self.declare_parameter("packet_gap_ms", 1.0)  # Pause zwischen den Paketen eines Scans (WLAN verliert sonst Bursts)
 
         p = self.get_parameter
         self._dest = (p("dest_ip").value, int(p("dest_port").value))
@@ -37,6 +38,7 @@ class BridgeNode(Node):
         self._min_interval = 1.0 / max(0.1, float(p("max_rate_hz").value))
         self._max_range = float(p("max_range").value)
         self._intensity = bool(p("send_intensity").value)
+        self._packet_gap = max(0.0, float(p("packet_gap_ms").value)) / 1000.0
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._seq = 0
@@ -68,7 +70,9 @@ class BridgeNode(Node):
         packets = encode_frame(pts, self._seq, stamp_ms, inten)
         self._seq += 1
         try:
-            for packet in packets:
+            for index, packet in enumerate(packets):
+                if index and self._packet_gap:
+                    time.sleep(self._packet_gap)
                 self._sock.sendto(packet, self._dest)
                 self._sent_bytes += len(packet)
         except OSError as e:

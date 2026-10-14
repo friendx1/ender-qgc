@@ -64,6 +64,9 @@ void PointCloudReceiver::_start()
         return;
     }
 
+    // A scan arrives as a burst of datagrams, the default buffer can overflow before we read them
+    _socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, kReceiveBufferBytes);
+
     qCDebug(PointCloudReceiverLog) << "Listening for point cloud on UDP port" << _port;
     connect(_socket, &QUdpSocket::readyRead, this, &PointCloudReceiver::_readPendingDatagrams);
     _assembler.reset();
