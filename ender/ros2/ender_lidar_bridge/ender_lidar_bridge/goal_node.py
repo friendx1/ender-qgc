@@ -120,7 +120,8 @@ def main() -> None:
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():  # Strg+C hat den Kontext unter Umständen schon beendet
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
