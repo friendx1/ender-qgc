@@ -96,3 +96,39 @@ python C:\dev\ender-qgc\ender\ros2\ender_lidar_bridge\tools\fake_sender.py --ip 
 QGC hört auf UDP 19900, sobald das Punktwolken-Fenster sichtbar ist. Beim ersten Start fragt die Windows-Firewall, dort private Netzwerke erlauben.
 
 Flugziel ohne Drohne testen: `python ender\ros2\ender_lidar_bridge\tools\fake_goal_receiver.py --port 19901` nimmt Ziele an und bestätigt sie. In `run-qgc.bat` vor dem Start der App `set ENDER_GOAL_HOST=127.0.0.1` einfügen.
+
+## Simulation auf dem Linux-Rechner (Ziel antippen testen)
+
+Die Drohnen-Software liegt im Repo `BirkS04/drone-project` (privat, nur lesend klonen: `gh auth login`, dann
+`git clone` nach `~/drone-project` mit Submodulen). Die Sim läuft im Docker-Image des devcontainers, wir starten es
+mit NVIDIA-Grafik, ohne dort etwas zu ändern:
+
+```bash
+~/ender-qgc/ender/sim/start_sim_container.sh      # auf dem Host; ein zweiter Aufruf öffnet ein weiteres Terminal im Container
+```
+
+Im Container (tmux, Fenster mit `Strg+b` und `c`):
+
+```bash
+sl                  # Gazebo, ArduPilot SITL, ROS-System
+launch_super        # SUPER (eigenes Terminal)
+start_rviz          # optional
+gat                 # Guided, Arm, Takeoff
+
+cd /workspaces/ender-qgc/ender/ros2
+colcon build --packages-select ender_lidar_bridge --symlink-install
+source install/setup.zsh
+ros2 run ender_lidar_bridge goal_node
+ros2 run ender_lidar_bridge bridge_node --ros-args -p dest_ip:=<IP des Laptops>
+```
+
+Auf dem Laptop (PowerShell), Laptop und Linux im selben Netz:
+
+```powershell
+$env:ENDER_GOAL_HOST = "<IP des Linux-Rechners>"
+run-qgc
+```
+
+Hinweise: In `drone-project` muss `ego.parm` die Werte aus `egoparms.parm` enthalten, sonst fliegt die Sim schlecht
+(lokale Änderung, vor `git pull` `git stash`). Die Windows-Firewall muss QGC im privaten Netz zulassen.
+`Strg+c` beendet eine Node, `clu` räumt die ganze Sim auf.
