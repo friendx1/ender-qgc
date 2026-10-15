@@ -22,14 +22,20 @@
 # Umgebungsvariablen (alle optional):
 #   ENDER_ROS_WS   Workspace mit ender_lidar_bridge  (Standard: /workspaces/ender-qgc/ender/ros2)
 #   ENDER_SESSION  Name der tmux-Sitzung, falls das Skript nicht in tmux läuft  (Standard: ender)
+#   ENDER_COMPRESSOR  0 = den Kompressor nicht starten (Standard: 1). Nötig, wenn Birks Launch-File ihn schon
+#                  startet, zwei Kompressoren auf demselben Topic gehen nicht.
 set -euo pipefail
 
 WS="${ENDER_ROS_WS:-/workspaces/ender-qgc/ender/ros2}"
 SESSION="${ENDER_SESSION:-ender}"
-WINDOWS=(ender-bridge ender-relay ender-goal ender-compressor)
+ALL_WINDOWS=(ender-bridge ender-relay ender-goal ender-compressor)
+WINDOWS=(ender-bridge ender-relay ender-goal)
+if [ "${ENDER_COMPRESSOR:-1}" != "0" ]; then
+    WINDOWS+=(ender-compressor)
+fi
 
 usage() {
-    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-1}"
 }
 
@@ -40,7 +46,7 @@ stop_windows() {
     if [ -n "${TMUX:-}" ]; then
         local current
         current="$(tmux display-message -p '#S')"
-        for name in "${WINDOWS[@]}"; do
+        for name in "${ALL_WINDOWS[@]}"; do
             tmux kill-window -t "${current}:${name}" 2>/dev/null || true
         done
     fi

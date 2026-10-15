@@ -138,7 +138,8 @@ Alle Nodes mit einem Befehl (statt der letzten drei Zeilen oben und der Befehle 
 ```
 
 Das Skript startet `bridge_node`, `map_relay_node`, `goal_node` und Birks `pointcloud_compressor_node` (mit den
-Werten per `-p`, siehe unten) in vier tmux-Fenstern `ender-*` und lässt sie offen, falls eine Node mit einem Fehler
+Werten per `-p`, siehe unten) in vier tmux-Fenstern `ender-*`. Mit `ENDER_COMPRESSOR=0` entfällt der Kompressor (wenn Birks
+Launch-File ihn schon startet), mit `ENDER_ROS_WS=<Pfad>` zeigt man auf einen anderen Workspace (Onboard-PC) und lässt sie offen, falls eine Node mit einem Fehler
 endet. Es braucht den gebauten Workspace und läuft SUPER (`sl`, `launch_super`). Im Container wechselst du mit
 `Strg+b` und der Fensternummer (`Strg+b w` zeigt die Liste).
 
