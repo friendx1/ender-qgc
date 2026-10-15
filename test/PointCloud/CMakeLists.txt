@@ -18,6 +18,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         MapReceiverTest.cc
         MapReceiverTest.h
         MapTestData.h
+        OnboardAddressTest.cc
+        OnboardAddressTest.h
         PointCloudInstancingTest.cc
         PointCloudInstancingTest.h
         TrajectoryInstancingTest.cc
@@ -32,5 +34,6 @@ add_qgc_test(GoalSenderTest LABELS Unit PointCloud)
 add_qgc_test(MapInstancingTest LABELS Unit PointCloud)
 add_qgc_test(MapProtocolTest LABELS Unit PointCloud)
 add_qgc_test(MapReceiverTest LABELS Unit PointCloud)
+add_qgc_test(OnboardAddressTest LABELS Unit PointCloud)
 add_qgc_test(PointCloudInstancingTest LABELS Unit PointCloud)
 add_qgc_test(TrajectoryInstancingTest LABELS Unit PointCloud)

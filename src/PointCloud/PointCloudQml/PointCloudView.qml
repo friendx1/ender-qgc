@@ -72,6 +72,9 @@ Rectangle {
     property bool _freeBeforeGoal: false
 
     // Picked goal in scene centimeters (x right, z backwards), see PointCloudInstancing.toScenePosition
+    // Address of the onboard computer, edited with the label at the top left
+    property bool _editingHost: false
+
     property bool _hasGoal: false
     property real _goalSceneX: 0
     property real _goalSceneZ: 0
@@ -99,10 +102,15 @@ Rectangle {
         active: root.visible
     }
 
+    OnboardAddress {
+        id: onboard
+    }
+
     // Connected for the obstacle map, the trajectories, the free view and the persistence of the scan: all need the
     // pose of the vehicle. The map and the trajectories are only requested while they are shown.
     MapReceiver {
         id: mapRx
+        host: onboard.host
         active: (root.showObstacles || root.showTrajectory || root.freeView || root.scanPersistenceMs > 0) && root.visible
         wantMap: root.showObstacles
         wantTrajectory: root.showTrajectory
@@ -122,6 +130,7 @@ Rectangle {
 
     GoalSender {
         id: sender
+        host: onboard.host
 
         onGoalResult: (accepted, text) => {
             if (accepted) {
@@ -504,6 +513,12 @@ Rectangle {
         sender.sendGoal(_goalForward, _goalLeft, cloudInstancing.stampMs)
     }
 
+    function _applyHost() {
+        onboard.host = hostInput.text
+        _editingHost = false
+        hostInput.focus = false
+    }
+
     function _hit(item, x, y) {
         if (!item.visible) {
             return false
@@ -514,7 +529,13 @@ Rectangle {
 
     // The buttons are plain rectangles; taps are routed here because the touch area sits below them
     function _handleTap(x, y) {
-        if (_hit(enterButton, x, y)) {
+        if (_editingHost) {
+            return
+        }
+        if (_hit(hostChip, x, y)) {
+            hostInput.text = onboard.host
+            _editingHost = true
+        } else if (_hit(enterButton, x, y)) {
             _enterGoalMode()
         } else if (_hit(obstacleButton, x, y)) {
             showObstacles = !showObstacles
@@ -624,6 +645,99 @@ Rectangle {
             height: root._buttonHeight
             visible: root.goalMode
             label: qsTr("Abbrechen")
+        }
+    }
+
+    // The address of the onboard computer. Tapping it opens the editor. Green when the link is up.
+    Rectangle {
+        id: hostChip
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: 6
+        width: hostChipText.implicitWidth + 16
+        height: 28
+        radius: 4
+        color: "#99000000"
+        visible: root._controlsVisible && !root.goalMode
+
+        Text {
+            id: hostChipText
+            anchors.centerIn: parent
+            color: mapRx.connected ? "#7ee06a" : "#aab4be"
+            font.pixelSize: 13
+            text: qsTr("Drohne: %1").arg(onboard.host)
+        }
+    }
+
+    // Editor for the address: the radio has no keyboard, the on-screen keyboard comes with the focus
+    Rectangle {
+        id: hostEditor
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 24, 380)
+        height: 150
+        radius: 8
+        color: "#1c252d"
+        border.color: "#aab4be"
+        visible: root._editingHost && root.interactive
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 10
+
+            Text {
+                color: "white"
+                font.pixelSize: 15
+                text: qsTr("Adresse der Drohne (Onboard-PC)")
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 40
+                radius: 4
+                color: "#10151a"
+                border.color: hostInput.activeFocus ? "#c01fa8" : "#53606b"
+
+                TextInput {
+                    id: hostInput
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    verticalAlignment: TextInput.AlignVCenter
+                    color: "white"
+                    font.pixelSize: 18
+                    inputMethodHints: Qt.ImhPreferNumbers | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    selectByMouse: true
+                    onAccepted: root._applyHost()
+                }
+            }
+
+            Row {
+                spacing: 10
+
+                Rectangle {
+                    width: 120
+                    height: 40
+                    radius: 6
+                    color: "#c01fa8"
+                    Text { anchors.centerIn: parent; color: "white"; font.pixelSize: 16; text: qsTr("Übernehmen") }
+                    MouseArea { anchors.fill: parent; onClicked: root._applyHost() }
+                }
+                Rectangle {
+                    width: 120
+                    height: 40
+                    radius: 6
+                    color: "#2b3640"
+                    Text { anchors.centerIn: parent; color: "white"; font.pixelSize: 16; text: qsTr("Abbrechen") }
+                    MouseArea { anchors.fill: parent; onClicked: root._editingHost = false }
+                }
+            }
+        }
+
+        onVisibleChanged: {
+            if (visible) {
+                hostInput.forceActiveFocus()
+                hostInput.selectAll()
+            }
         }
     }
 

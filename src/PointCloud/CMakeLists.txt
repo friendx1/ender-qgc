@@ -30,6 +30,8 @@ qt_add_qml_module(PointCloudModule
         MapProtocol.h
         MapReceiver.cc
         MapReceiver.h
+        OnboardAddress.cc
+        OnboardAddress.h
         PointCloudInstancing.cc
         PointCloudInstancing.h
         PointCloudReceiver.cc
