@@ -129,6 +129,19 @@ $env:ENDER_GOAL_HOST = "<IP des Linux-Rechners>"
 run-qgc
 ```
 
+Alle Nodes mit einem Befehl (statt der letzten drei Zeilen oben und der Befehle im Abschnitt Hindernis-Karte):
+
+```bash
+/workspaces/ender-qgc/ender/sim/start_ender_nodes.sh <IP des Laptops>          # Sim, 3000 Punkte je Scan
+/workspaces/ender-qgc/ender/sim/start_ender_nodes.sh <IP der Funke> 6000       # echt, 6000 Punkte
+/workspaces/ender-qgc/ender/sim/start_ender_nodes.sh --stop                    # alles beenden
+```
+
+Das Skript startet `bridge_node`, `map_relay_node`, `goal_node` und Birks `pointcloud_compressor_node` (mit den
+Werten per `-p`, siehe unten) in vier tmux-Fenstern `ender-*` und lässt sie offen, falls eine Node mit einem Fehler
+endet. Es braucht den gebauten Workspace und läuft SUPER (`sl`, `launch_super`). Im Container wechselst du mit
+`Strg+b` und der Fensternummer (`Strg+b w` zeigt die Liste).
+
 Hinweise: In `drone-project` muss `ego.parm` die Werte aus `egoparms.parm` enthalten, sonst fliegt die Sim schlecht
 (lokale Änderung, vor `git pull` `git stash`). Die Windows-Firewall muss QGC im privaten Netz zulassen.
 `Strg+c` beendet eine Node, `clu` räumt die ganze Sim auf.
@@ -148,7 +161,14 @@ Die Punktwolken-Ansicht hat zwei Kameras, umgeschaltet mit dem Button rechts am 
 Die freie Kamera braucht die Pose der Drohne in der Welt (`/Odometry`, FAST-LIO). QGC verbindet sich dafür mit der
 `map_relay_node` (TCP 19902), auch wenn die Hindernisse aus sind; die Karte wird dann nicht angefordert. Der Scan
 (Drohnen-Koordinaten) wird mit der Pose zum Scan-Zeitpunkt in die Welt gestellt, die Pose dazwischen interpoliert.
-Ohne Pose bleibt der Scan im Ursprung, unten links steht dann ein Hinweis. "Ziel wählen" schaltet immer in die
+Ohne Pose bleibt der Scan im Ursprung, unten links steht dann ein Hinweis.
+
+**Nachleuchten:** Scan-Punkte bleiben 5 s sichtbar (`PointCloudView.scanPersistenceMs`, 0 = nur der letzte Scan). Jeder
+Scan wird mit der Pose zu seinem Zeitstempel in die Welt gestellt und in ein 10-cm-Raster eingetragen; eine Fläche, die
+wieder gesehen wird, frischt nur ihre Zelle auf, die Punktzahl wächst also nicht, solange die Drohne schwebt. Die Punkte
+bleiben beim Fliegen dort stehen, wo sie gesehen wurden. Dafür verbindet sich QGC immer mit der `map_relay_node`
+(nur Pose, die Karte nur bei "Hindernisse an"). Ohne Pose (Relay-Node läuft nicht) zeigt die Ansicht wie vorher nur den
+letzten Scan, die Statuszeile zählt die gezeichneten Punkte. "Ziel wählen" schaltet immer in die
 Drohnen-Ansicht (Blick von oben) und danach zurück in die freie Kamera, falls sie an war.
 
 ### Hindernis-Karte (SUPER inflate map) in der 3D-Ansicht

@@ -34,6 +34,10 @@ Rectangle {
     /// Free camera in the world instead of the camera that follows the vehicle
     property bool freeView: false
 
+    /// How long scan points stay visible, in milliseconds. They stay where they were seen while the vehicle flies,
+    /// which needs its pose from the onboard computer. 0 shows only the latest scan.
+    property int scanPersistenceMs: 5000
+
     /// Obstacle map on or off. Off by default, so nothing is requested from the vehicle until it is wanted.
     property bool showObstacles: false
 
@@ -89,11 +93,11 @@ Rectangle {
         active: root.visible
     }
 
-    // Connected for the obstacle map and for the free view: both need the pose of the vehicle.
-    // The map itself is only requested while the obstacles are shown.
+    // Connected for the obstacle map, the free view and the persistence of the scan: all need the pose of the
+    // vehicle. The map itself is only requested while the obstacles are shown.
     MapReceiver {
         id: mapRx
-        active: (root.showObstacles || root.freeView) && root.visible
+        active: (root.showObstacles || root.freeView || root.scanPersistenceMs > 0) && root.visible
         wantMap: root.showObstacles
         frozen: root.goalMode
         scanStamp: cloudInstancing.stampMs
@@ -202,10 +206,11 @@ Rectangle {
             }
         }
 
-        // The scan, placed with the pose of the vehicle at the moment of the scan
+        // The scan. While points are kept over time they are already in the world; otherwise the scan is in the vehicle
+        // frame and is placed with the pose of the vehicle at the moment of the scan.
         Node {
-            position: mapRx.scanPosition
-            rotation: mapRx.scanRotation
+            position: cloudInstancing.worldMode ? Qt.vector3d(0, 0, 0) : mapRx.scanPosition
+            rotation: cloudInstancing.worldMode ? Qt.quaternion(1, 0, 0, 0) : mapRx.scanRotation
 
             Model {
                 id: cloudModel
@@ -213,6 +218,8 @@ Rectangle {
                 instancing: PointCloudInstancing {
                     id: cloudInstancing
                     receiver: cloudReceiver
+                    poseSource: mapRx
+                    persistenceMs: root.scanPersistenceMs
                     // Seen from far above a 4 cm cube is smaller than a pixel
                     pointSize: root.goalMode ? Math.max(4, root._topFov * 3) : 4
                 }
@@ -670,6 +677,6 @@ Rectangle {
         visible: root.showStatus && cloudReceiver.receiving
         color: "#aab4be"
         font.pixelSize: 12
-        text: root.goalMode ? qsTr("Scan eingefroren") : qsTr("%1 Punkte · %2 Hz").arg(cloudReceiver.pointCount).arg(cloudReceiver.frameRate)
+        text: root.goalMode ? qsTr("Scan eingefroren") : qsTr("%1 Punkte · %2 Hz").arg(cloudInstancing.count).arg(cloudReceiver.frameRate)
     }
 }

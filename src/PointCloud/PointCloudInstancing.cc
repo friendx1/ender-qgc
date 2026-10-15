@@ -11,6 +11,19 @@ namespace {
 
 constexpr float kCentimetersPerMeter = 100.0f;
 constexpr float kCubeEdgeUnits = 100.0f;  // Edge length of the built-in #Cube primitive
+constexpr float kVoxelSizeMeters = 0.1f;
+
+/// Milliseconds from b to a, correct across the wrap of the 32 bit stamp
+qint32 diffMs(quint32 a, quint32 b)
+{
+    return static_cast<qint32>(a - b);
+}
+
+quint64 voxelKey(const QVector3D& meters)
+{
+    const auto cell = [](float v) { return static_cast<quint64>(static_cast<qint64>(std::floor(v / kVoxelSizeMeters)) & 0x1FFFFF); };
+    return (cell(meters.x()) << 42) | (cell(meters.y()) << 21) | cell(meters.z());
+}
 
 }  // namespace
 
@@ -29,6 +42,86 @@ void PointCloudInstancing::setReceiver(PointCloudReceiver* receiver)
         connect(_receiver, &PointCloudReceiver::frameReceived, this, &PointCloudInstancing::_onFrameReceived);
     }
     emit receiverChanged();
+}
+
+void PointCloudInstancing::setPersistenceMs(int persistenceMs)
+{
+    persistenceMs = qMax(0, persistenceMs);
+    if (_persistenceMs == persistenceMs) {
+        return;
+    }
+    _persistenceMs = persistenceMs;
+    if (_persistenceMs == 0) {
+        _clearVoxels();
+    }
+    emit persistenceMsChanged();
+}
+
+void PointCloudInstancing::setPoseSource(MapReceiver* poseSource)
+{
+    if (_poseSource == poseSource) {
+        return;
+    }
+    if (_poseSource) {
+        disconnect(_poseSource, nullptr, this, nullptr);
+    }
+    _poseSource = poseSource;
+    if (_poseSource) {
+        connect(_poseSource, &MapReceiver::poseChanged, this, &PointCloudInstancing::_onPoseChanged);
+    } else {
+        _clearVoxels();
+    }
+    emit poseSourceChanged();
+}
+
+void PointCloudInstancing::_onPoseChanged()
+{
+    // Without a pose the scans cannot be kept in the world
+    if (!_voxels.isEmpty() && (!_poseSource || !_poseSource->poseValid())) {
+        _clearVoxels();
+    }
+}
+
+void PointCloudInstancing::_clearVoxels()
+{
+    if (_voxels.isEmpty()) {
+        return;
+    }
+    _voxels.clear();
+    _dirty = true;
+    markDirty();
+    emit worldModeChanged();
+    emit countChanged();
+}
+
+void PointCloudInstancing::_accumulate(const EpclFrame& frame)
+{
+    const bool wasWorld = !_voxels.isEmpty();
+
+    if (_persistenceMs > 0 && _poseSource && _poseSource->poseValid()) {
+        // A scan whose moment is not covered by the poses is left out, the next one may be
+        if (const std::optional<EmapPose> pose = _poseSource->poseAt(frame.stampMs)) {
+            if (!_voxels.isEmpty() && diffMs(_newestStampMs, frame.stampMs) > _persistenceMs) {
+                _voxels.clear();  // the clock of the vehicle restarted
+            }
+            _newestStampMs = frame.stampMs;
+
+            const QQuaternion orientation = pose->orientation.normalized();
+            for (const QVector3D& point : frame.points) {
+                const QVector3D world = pose->position + orientation.rotatedVector(point);
+                _voxels.insert(voxelKey(world), Voxel{world, point.z(), frame.stampMs});
+            }
+            for (auto it = _voxels.begin(); it != _voxels.end();) {
+                it = diffMs(frame.stampMs, it->stampMs) > _persistenceMs ? _voxels.erase(it) : std::next(it);
+            }
+        }
+    } else {
+        _voxels.clear();
+    }
+
+    if (wasWorld != !_voxels.isEmpty()) {
+        emit worldModeChanged();
+    }
 }
 
 void PointCloudInstancing::setPointSize(float pointSize)
@@ -67,6 +160,7 @@ void PointCloudInstancing::setHeightMax(float heightMax)
 void PointCloudInstancing::setFrame(const EpclFrame& frame)
 {
     _frame = frame;
+    _accumulate(frame);
     _dirty = true;
     markDirty();
     emit countChanged();
@@ -114,16 +208,26 @@ QByteArray PointCloudInstancing::getInstanceBuffer(int* instanceCount)
 
         const float cubeScale = _pointSize / kCubeEdgeUnits;
         const QVector3D scale(cubeScale, cubeScale, cubeScale);
-        for (const QVector3D& point : std::as_const(_frame.points)) {
-            const InstanceTableEntry entry =
-                calculateTableEntry(toScenePosition(point), scale, QVector3D(0, 0, 0), _colorForHeight(point.z()));
-            _instanceData.append(reinterpret_cast<const char*>(&entry), sizeof(entry));
+        if (!_voxels.isEmpty()) {
+            _instanceData.reserve(static_cast<qsizetype>(_voxels.size() * sizeof(InstanceTableEntry)));
+            for (const Voxel& voxel : std::as_const(_voxels)) {
+                const InstanceTableEntry entry = calculateTableEntry(toScenePosition(voxel.world), scale,
+                                                                     QVector3D(0, 0, 0),
+                                                                     _colorForHeight(voxel.colorHeight));
+                _instanceData.append(reinterpret_cast<const char*>(&entry), sizeof(entry));
+            }
+        } else {
+            for (const QVector3D& point : std::as_const(_frame.points)) {
+                const InstanceTableEntry entry =
+                    calculateTableEntry(toScenePosition(point), scale, QVector3D(0, 0, 0), _colorForHeight(point.z()));
+                _instanceData.append(reinterpret_cast<const char*>(&entry), sizeof(entry));
+            }
         }
         _dirty = false;
     }
 
     if (instanceCount) {
-        *instanceCount = static_cast<int>(_frame.points.size());
+        *instanceCount = count();
     }
     return _instanceData;
 }

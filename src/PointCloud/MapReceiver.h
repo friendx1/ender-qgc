@@ -110,6 +110,10 @@ public:
 
     QString errorString() const { return _errorString; }
 
+    /// Pose of the vehicle at a stamp (milliseconds of the LiDAR clock), interpolated from the last seconds of
+    /// poses. Nothing if the stamp lies outside of them, see EmapPoseHistory::at.
+    std::optional<EmapPose> poseAt(quint32 stampMs) const { return _poseHistory.at(stampMs); }
+
     /// Displayed map in world meters, valid until the next mapChanged()
     const EmapCloud& map() const { return _map; }
 

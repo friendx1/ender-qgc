@@ -13,4 +13,7 @@ private slots:
     void _testHeightColors();
     void _testPointSizeMarksDirty();
     void _testFrozenAndStamp();
+    void _testPersistenceKeepsPointsInTheWorld();
+    void _testPersistenceDropsOldPointsAndMergesCells();
+    void _testPersistenceNeedsPoseAndSwitchesOff();
 };
