@@ -120,11 +120,87 @@ QQuaternion EmapProtocol::sceneRotation(const QQuaternion& vehicleOrientation)
     return QQuaternion(q.scalar(), q.y(), -q.z(), q.x());
 }
 
-void EmapProtocol::sceneTransform(const EmapPose& pose, QVector3D* position, QQuaternion* rotation)
+void EmapProtocol::sceneVehiclePlacement(const EmapPose& pose, QVector3D* position, QQuaternion* rotation)
 {
-    const QQuaternion rot = sceneRotation(pose.orientation);
-    *rotation = rot;
-    *position = -rot.rotatedVector(PointCloudInstancing::toScenePosition(pose.position));
+    // sceneRotation turns world into body, the node needs the way back
+    *rotation = sceneRotation(pose.orientation).conjugated();
+    *position = PointCloudInstancing::toScenePosition(pose.position);
+}
+
+QByteArray EmapProtocol::encodeControl(bool wantMap)
+{
+    QByteArray out;
+    out.append("EMAP", 4);
+    out.append(static_cast<char>(kVersion));
+    out.append(static_cast<char>(kTypeControl));
+    out.append(char(0));
+    out.append(char(0));
+    out.append(char(1));  // payload length, little endian
+    out.append(char(0));
+    out.append(char(0));
+    out.append(char(0));
+    out.append(static_cast<char>(wantMap ? kFlagWantMap : 0));
+    return out;
+}
+
+namespace {
+/// Milliseconds from b to a, correct across the wrap of the 32 bit stamp
+qint32 diffMs(quint32 a, quint32 b)
+{
+    return static_cast<qint32>(a - b);
+}
+}  // namespace
+
+void EmapPoseHistory::add(const EmapPose& pose)
+{
+    if (!_poses.isEmpty()) {
+        const qint32 step = diffMs(pose.stampMs, _poses.last().stampMs);
+        if (step == 0) {
+            _poses.last() = pose;
+            return;
+        }
+        if (step < 0) {
+            if (step >= -kKeepMs) {
+                return;      // out of order, the newer pose is already stored
+            }
+            _poses.clear();  // the clock of the vehicle restarted
+        }
+    }
+    _poses.append(pose);
+    while (diffMs(_poses.last().stampMs, _poses.first().stampMs) > kKeepMs) {
+        _poses.removeFirst();
+    }
+}
+
+std::optional<EmapPose> EmapPoseHistory::at(quint32 stampMs) const
+{
+    if (_poses.isEmpty()) {
+        return std::nullopt;
+    }
+    const EmapPose& newest = _poses.last();
+    if (diffMs(stampMs, newest.stampMs) >= 0) {
+        return diffMs(stampMs, newest.stampMs) <= kToleranceMs ? std::optional<EmapPose>(newest) : std::nullopt;
+    }
+    const EmapPose& oldest = _poses.first();
+    if (diffMs(stampMs, oldest.stampMs) <= 0) {
+        return diffMs(oldest.stampMs, stampMs) <= kToleranceMs ? std::optional<EmapPose>(oldest) : std::nullopt;
+    }
+
+    // Strictly inside: find the pose before and the one after
+    qsizetype after = _poses.size() - 1;
+    while (after > 0 && diffMs(_poses[after - 1].stampMs, stampMs) > 0) {
+        --after;
+    }
+    const EmapPose& b = _poses[after];
+    const EmapPose& a = _poses[after - 1];
+    const qint32 span = diffMs(b.stampMs, a.stampMs);
+    const float t = span > 0 ? static_cast<float>(diffMs(stampMs, a.stampMs)) / static_cast<float>(span) : 0.0f;
+
+    EmapPose out;
+    out.stampMs = stampMs;
+    out.position = a.position + (b.position - a.position) * t;
+    out.orientation = QQuaternion::slerp(a.orientation.normalized(), b.orientation.normalized(), t);
+    return out;
 }
 
 QList<EmapProtocol::Message> EmapStreamDecoder::feed(const QByteArray& bytes)

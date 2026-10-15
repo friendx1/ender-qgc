@@ -20,7 +20,9 @@ void MapReceiverTest::_testInitialState()
     QVERIFY(!receiver.poseValid());
     QCOMPARE(receiver.pointCount(), 0);
     QCOMPARE(receiver.port(), MapReceiver::kDefaultPort);
-    QCOMPARE(receiver.modelPosition(), QVector3D());
+    QCOMPARE(receiver.vehiclePosition(), QVector3D());
+    QCOMPARE(receiver.scanPosition(), QVector3D());
+    QVERIFY(receiver.wantMap());
 }
 
 void MapReceiverTest::_testHostFromEnvironment()
@@ -72,36 +74,72 @@ void MapReceiverTest::_testMapBeforePoseWaitsForPose()
     QVERIFY(receiver.poseValid());
 }
 
-void MapReceiverTest::_testPoseMovesModelNotMap()
+void MapReceiverTest::_testPoseMovesVehicleNotMap()
 {
     MapReceiver receiver;
     receiver.handleBytes(poseMessage(0, 0, 0) + mapMessage());
     QSignalSpy mapSpy(&receiver, &MapReceiver::mapChanged);
     QSignalSpy poseSpy(&receiver, &MapReceiver::poseChanged);
 
-    const QVector3D before = receiver.modelPosition();
+    const QVector3D before = receiver.vehiclePosition();
     receiver.handleBytes(poseMessage(2, 0, 0));
 
     QCOMPARE(mapSpy.count(), 0);  // flying does not rebuild the map
     QVERIFY(poseSpy.count() >= 1);
-    QVERIFY(receiver.modelPosition() != before);
+    QVERIFY(receiver.vehiclePosition() != before);
+    // 2 m ahead of the origin is 200 cm along -z in the scene
+    QCOMPARE_FUZZY(receiver.vehiclePosition().z(), -200.0f, 0.01f);
     QCOMPARE(receiver.pointCount(), 2);
+}
+
+void MapReceiverTest::_testScanPlacementUsesPoseAtScanStamp()
+{
+    MapReceiver receiver;
+    QSignalSpy placementSpy(&receiver, &MapReceiver::scanPlacementChanged);
+
+    // Poses at 1000 ms (x = 0) and 1100 ms (x = 1)
+    receiver.handleBytes(poseMessage(0, 0, 0, 0, 0, 0, 1, 1000) + poseMessage(1, 0, 0, 0, 0, 0, 1, 1100));
+
+    // The scan was taken in the middle of the two poses
+    receiver.setScanStamp(1050);
+    QCOMPARE_FUZZY(receiver.scanPosition().z(), -50.0f, 0.01f);
+    QCOMPARE_FUZZY(receiver.vehiclePosition().z(), -100.0f, 0.01f);  // the latest pose is the later one
+
+    // A scan newer than the newest pose uses the newest pose, until the matching pose arrives
+    receiver.setScanStamp(1150);
+    QCOMPARE_FUZZY(receiver.scanPosition().z(), -100.0f, 0.01f);
+    receiver.handleBytes(poseMessage(3, 0, 0, 0, 0, 0, 1, 1200));
+    QCOMPARE_FUZZY(receiver.scanPosition().z(), -200.0f, 0.01f);
+
+    // A stamp the history knows nothing about leaves the scan where it is
+    const QVector3D kept = receiver.scanPosition();
+    receiver.setScanStamp(99999);
+    QCOMPARE(receiver.scanPosition(), kept);
+    QVERIFY(placementSpy.count() >= 3);
+
+    // While frozen the placement does not move, afterwards it catches up
+    receiver.setScanStamp(1100);
+    receiver.setFrozen(true);
+    receiver.setScanStamp(1200);
+    QCOMPARE_FUZZY(receiver.scanPosition().z(), -100.0f, 0.01f);
+    receiver.setFrozen(false);
+    QCOMPARE_FUZZY(receiver.scanPosition().z(), -300.0f, 0.01f);
 }
 
 void MapReceiverTest::_testFrozenKeepsDisplayedState()
 {
     MapReceiver receiver;
     receiver.handleBytes(poseMessage(0, 0, 0) + mapMessage());
-    const QVector3D shown = receiver.modelPosition();
+    const QVector3D shown = receiver.vehiclePosition();
 
     receiver.setFrozen(true);
     receiver.setRadius(50.0f);
     receiver.handleBytes(poseMessage(3, 0, 0) + mapMessage());
-    QCOMPARE(receiver.modelPosition(), shown);
+    QCOMPARE(receiver.vehiclePosition(), shown);
     QCOMPARE(receiver.pointCount(), 2);  // still the old map
 
     receiver.setFrozen(false);
-    QVERIFY(receiver.modelPosition() != shown);
+    QVERIFY(receiver.vehiclePosition() != shown);
     QCOMPARE(receiver.pointCount(), 3);
 }
 
@@ -135,4 +173,45 @@ void MapReceiverTest::_testReceivesOverLocalConnection()
     QTRY_VERIFY_WITH_TIMEOUT(peer->state() == QAbstractSocket::UnconnectedState, 3000);
     QVERIFY(!receiver.connected());
     QCOMPARE(receiver.pointCount(), 0);
+}
+
+void MapReceiverTest::_testWantMapSendsControlAndDropsMaps()
+{
+    QTcpServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost, 0));
+
+    MapReceiver receiver;
+    receiver.setHost(QStringLiteral("127.0.0.1"));
+    receiver.setPort(server.serverPort());
+    receiver.setWantMap(false);  // the free view wants the pose only
+    receiver.setActive(true);
+
+    QVERIFY(server.waitForNewConnection(3000));
+    QTcpSocket* peer = server.nextPendingConnection();
+    QVERIFY(peer);
+    QTRY_VERIFY_WITH_TIMEOUT(receiver.connected(), 3000);
+
+    // The first thing the vehicle hears is that no map is wanted
+    QTRY_VERIFY_WITH_TIMEOUT(peer->bytesAvailable() >= EmapProtocol::kHeaderSize + 1, 3000);
+    QCOMPARE(peer->readAll(), EmapProtocol::encodeControl(false));
+
+    // A map that is already on its way is dropped, the pose is used
+    peer->write(poseMessage(0, 0, 0) + mapMessage());
+    peer->flush();
+    QTRY_VERIFY_WITH_TIMEOUT(receiver.poseValid(), 3000);
+    QCOMPARE(receiver.pointCount(), 0);
+    QVERIFY(!receiver.receiving());
+
+    // Asking for the map is passed on
+    receiver.setWantMap(true);
+    QTRY_VERIFY_WITH_TIMEOUT(peer->bytesAvailable() >= EmapProtocol::kHeaderSize + 1, 3000);
+    QCOMPARE(peer->readAll(), EmapProtocol::encodeControl(true));
+    peer->write(mapMessage());
+    peer->flush();
+    QTRY_COMPARE_WITH_TIMEOUT(receiver.pointCount(), 2, 3000);
+
+    // Not wanting it any more empties the display
+    receiver.setWantMap(false);
+    QCOMPARE(receiver.pointCount(), 0);
+    QVERIFY(!receiver.receiving());
 }

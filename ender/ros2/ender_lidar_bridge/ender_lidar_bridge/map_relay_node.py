@@ -7,6 +7,8 @@ dazu ein paar Mal pro Sekunde die Pose der Drohne, damit die Bodenstation die Ka
 
 Die Node ist der Server, die Bodenstation verbindet sich. Solange niemand verbunden ist,
 abonniert sie nichts: dann arbeitet auch Birks Kompressor nicht (er packt nur, wenn jemand zuhört).
+Ist die Bodenstation verbunden, läuft die Pose (die freie Kamera braucht sie). Die Karte wird erst
+abonniert, wenn die Bodenstation sie per Steuernachricht verlangt ("Hindernisse an").
 
 Start (der Kompressor muss laufen):
     ros2 run ender_lidar_bridge map_relay_node
@@ -22,7 +24,7 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import UInt8MultiArray
 
-from .map_protocol import OutQueue, encode_map, encode_pose
+from .map_protocol import TYPE_CONTROL, OutQueue, StreamDecoder, decode_control, encode_map, encode_pose
 
 _SEND_CHUNK = 64 * 1024
 
@@ -50,6 +52,8 @@ class MapRelayNode(Node):
 
         self._client: Optional[socket.socket] = None
         self._queue = OutQueue()
+        self._decoder = StreamDecoder()
+        self._want_map = False
         self._map_sub = None
         self._odom_sub = None
         self._latest_odom: Optional[Odometry] = None
@@ -62,7 +66,7 @@ class MapRelayNode(Node):
         self.create_timer(pose_interval, self._queue_pose)
         self.get_logger().info(
             f"Warte auf die Bodenstation auf TCP {p('listen_port').value} "
-            f"(Karte {self._map_topic}, höchstens {1 / self._min_map_interval:.1f} Hz)"
+            f"(Karte {self._map_topic} nur auf Wunsch, höchstens {1 / self._min_map_interval:.1f} Hz)"
         )
 
     # --- Verbindung -------------------------------------------------------------------
@@ -70,7 +74,7 @@ class MapRelayNode(Node):
     def _service(self) -> None:
         self._accept()
         if self._client is not None:
-            self._check_client_alive()
+            self._read_client()
         if self._client is not None:
             self._flush()
         self._log_stats()
@@ -89,15 +93,17 @@ class MapRelayNode(Node):
         client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._client = client
         self._queue = OutQueue()
+        self._decoder = StreamDecoder()
         self._latest_odom = None
         self._sent_bytes, self._stats_at = 0, time.monotonic()
-        self._subscribe()
-        self.get_logger().info(f"Bodenstation {address[0]} verbunden, abonniere {self._map_topic}")
+        self._want_map = False
+        self._subscribe_odom()
+        self.get_logger().info(f"Bodenstation {address[0]} verbunden, sende die Pose (Karte nur auf Wunsch)")
 
-    def _check_client_alive(self) -> None:
-        """Die Bodenstation schickt nichts. Lesen wir 0 Bytes, hat sie die Verbindung beendet."""
+    def _read_client(self) -> None:
+        """Die Bodenstation schickt nur Steuernachrichten. Lesen wir 0 Bytes, hat sie getrennt."""
         try:
-            data = self._client.recv(64)
+            data = self._client.recv(256)
         except BlockingIOError:
             return
         except OSError:
@@ -105,6 +111,12 @@ class MapRelayNode(Node):
             return
         if not data:
             self._drop_client("Bodenstation hat getrennt")
+            return
+        for msg_type, payload in self._decoder.feed(data):
+            if msg_type == TYPE_CONTROL:
+                want_map = decode_control(payload)
+                if want_map is not None:
+                    self._set_want_map(want_map)
 
     def _drop_client(self, reason: str) -> None:
         if self._client is not None:
@@ -113,23 +125,39 @@ class MapRelayNode(Node):
             except OSError:
                 pass
         self._client = None
-        self._unsubscribe()
-        self.get_logger().info(f"{reason}, stoppe den Abruf der Karte")
+        self._want_map = False
+        self._unsubscribe_map()
+        self._unsubscribe_odom()
+        self.get_logger().info(f"{reason}, stoppe den Abruf von Pose und Karte")
 
     # --- Abos nur solange jemand zuhört -------------------------------------------------
 
-    def _subscribe(self) -> None:
+    def _subscribe_odom(self) -> None:
         # Best Effort, so wie Birks Kompressor veröffentlicht
-        map_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=2)
         odom_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=5)
-        self._map_sub = self.create_subscription(UInt8MultiArray, self._map_topic, self._on_map, map_qos)
         self._odom_sub = self.create_subscription(Odometry, self._odom_topic, self._on_odom, odom_qos)
 
-    def _unsubscribe(self) -> None:
-        for sub in (self._map_sub, self._odom_sub):
-            if sub is not None:
-                self.destroy_subscription(sub)
-        self._map_sub = self._odom_sub = None
+    def _unsubscribe_odom(self) -> None:
+        if self._odom_sub is not None:
+            self.destroy_subscription(self._odom_sub)
+        self._odom_sub = None
+
+    def _set_want_map(self, want_map: bool) -> None:
+        if want_map == self._want_map:
+            return
+        self._want_map = want_map
+        if want_map:
+            map_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=2)
+            self._map_sub = self.create_subscription(UInt8MultiArray, self._map_topic, self._on_map, map_qos)
+            self.get_logger().info(f"Karte verlangt, abonniere {self._map_topic}")
+        else:
+            self._unsubscribe_map()
+            self.get_logger().info("Karte nicht mehr verlangt, stoppe den Abruf der Karte")
+
+    def _unsubscribe_map(self) -> None:
+        if self._map_sub is not None:
+            self.destroy_subscription(self._map_sub)
+        self._map_sub = None
 
     # --- Daten --------------------------------------------------------------------------
 

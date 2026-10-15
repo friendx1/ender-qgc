@@ -35,6 +35,9 @@ struct EmapCloud
 ///
 /// Type 2, pose (44 bytes): u32 stamp_ms, f64 x, y, z, f32 qx, qy, qz, qw
 ///
+/// Type 3, control (1 byte, ground station to vehicle): flags, bit 0 = the map is wanted. The pose always
+/// flows while connected, the map only after the ground station asked for it.
+///
 /// Pure logic, no sockets, so it can be unit tested without a network.
 class EmapProtocol
 {
@@ -44,6 +47,8 @@ public:
     static constexpr quint8 kVersion = 1;
     static constexpr quint8 kTypeMap = 1;
     static constexpr quint8 kTypePose = 2;
+    static constexpr quint8 kTypeControl = 3;
+    static constexpr quint8 kFlagWantMap = 0x01;
     static constexpr quint32 kMaxPayloadBytes = 4 * 1024 * 1024;
     static constexpr qint64 kMaxUnpackedBytes = 8 * 1024 * 1024;
     static constexpr quint32 kMaxPoints = 500000;
@@ -60,13 +65,43 @@ public:
     /// Map payload (zstd packet) to points. Nothing for anything that does not unpack to a consistent packet.
     static std::optional<EmapCloud> parseMap(const QByteArray& payload);
 
-    /// Rotation that turns scene vectors of the world frame into scene vectors of the vehicle body frame.
-    /// Used with a position, see sceneTransform.
+    /// Control message (complete, with header) that tells the vehicle whether the map is wanted
+    static QByteArray encodeControl(bool wantMap);
+
+    /// Rotation that turns scene vectors of the world frame into scene vectors of the vehicle body frame
     static QQuaternion sceneRotation(const QQuaternion& vehicleOrientation);
 
-    /// Position and rotation of a Quick 3D node that carries points given in world scene coordinates
-    /// (PointCloudInstancing::toScenePosition of the world point) so that they appear in the vehicle body frame.
-    static void sceneTransform(const EmapPose& pose, QVector3D* position, QQuaternion* rotation);
+    /// Position (scene centimeters) and rotation of a Quick 3D node that carries the vehicle: everything
+    /// drawn inside that node in the vehicle body frame (PointCloudInstancing::toScenePosition) lands at the
+    /// right place in the world scene, where the obstacle map is drawn without any transform.
+    static void sceneVehiclePlacement(const EmapPose& pose, QVector3D* position, QQuaternion* rotation);
+};
+
+/// The last few seconds of vehicle poses. Answers "where was the vehicle when this scan was taken": scan and pose
+/// stamps come from the same LiDAR clock, the pose stream is only ten times per second, so the answer is
+/// interpolated between the two poses around the stamp.
+///
+/// Stamps are milliseconds that may wrap around, all comparisons are made on differences.
+class EmapPoseHistory
+{
+public:
+    static constexpr int kKeepMs = 5000;
+    static constexpr int kToleranceMs = 500;  ///< how far a stamp may lie outside the stored poses
+
+    /// Adds a pose. A pose with the stamp of the newest one replaces it, a slightly older one is ignored,
+    /// a jump back by more than kKeepMs means the vehicle clock restarted and clears the history.
+    void add(const EmapPose& pose);
+
+    /// Pose at the stamp, interpolated. Within kToleranceMs outside the stored range the nearest end is used,
+    /// farther out there is no answer.
+    std::optional<EmapPose> at(quint32 stampMs) const;
+
+    void clear() { _poses.clear(); }
+
+    int size() const { return static_cast<int>(_poses.size()); }
+
+private:
+    QList<EmapPose> _poses;  ///< ascending by stamp
 };
 
 /// Cuts the TCP byte stream back into messages. Bytes that do not start a valid header are skipped

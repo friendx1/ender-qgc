@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 
 from ender_lidar_bridge.map_protocol import (
-    HEADER, MAGIC, MAX_PAYLOAD, OutQueue, StreamDecoder, TYPE_MAP, TYPE_POSE,
-    decode_pose, encode_map, encode_message, encode_pose,
+    HEADER, MAGIC, MAX_PAYLOAD, OutQueue, StreamDecoder, TYPE_CONTROL, TYPE_MAP, TYPE_POSE,
+    decode_control, decode_pose, encode_control, encode_map, encode_message, encode_pose,
 )
 
 try:
@@ -28,6 +28,21 @@ class FramingTest(unittest.TestCase):
 
     def test_pose_with_wrong_length_is_rejected(self):
         self.assertIsNone(decode_pose(b"\x00" * 10))
+
+    def test_control_roundtrip(self):
+        for want_map in (True, False):
+            decoded = StreamDecoder().feed(encode_control(want_map))
+            self.assertEqual(len(decoded), 1)
+            self.assertEqual(decoded[0][0], TYPE_CONTROL)
+            self.assertEqual(decode_control(decoded[0][1]), want_map)
+
+    def test_control_with_wrong_length_is_rejected(self):
+        self.assertIsNone(decode_control(b""))
+        self.assertIsNone(decode_control(b"\x01\x00"))
+
+    def test_control_ignores_unknown_flag_bits(self):
+        self.assertTrue(decode_control(b"\x03"))
+        self.assertFalse(decode_control(b"\x02"))
 
     def test_header_is_12_bytes_and_starts_with_magic(self):
         message = encode_map(b"abc")

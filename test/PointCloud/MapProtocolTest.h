@@ -14,5 +14,8 @@ private slots:
     void _testStreamSplitAtAnyByte();
     void _testStreamRecoversAfterGarbage();
     void _testStreamSkipsHugeLengthAndUnknownVersion();
-    void _testSceneTransformMatchesBodyFrame();
+    void _testVehiclePlacementMatchesBodyFrame();
+    void _testControlMessage();
+    void _testPoseHistoryInterpolates();
+    void _testPoseHistoryLimits();
 };

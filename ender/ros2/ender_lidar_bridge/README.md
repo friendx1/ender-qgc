@@ -61,8 +61,10 @@ Ohne Drohne testen: `python3 tools/fake_goal_receiver.py --port 19901` nimmt Zie
 
 Die Node reicht die Hindernis-Karte, die Birks `pointcloud_compressor_node` schon gepackt auf
 `/rog_map/inf_occ_compressed` veröffentlicht, per TCP an die Bodenstation weiter und schickt dazu die Pose der
-Drohne (aus `/Odometry`). Sie ist der Server; erst wenn sich die Bodenstation verbindet, abonniert sie, und
-sie hört auf, wenn die Bodenstation trennt. Format: `ender_lidar_bridge/map_protocol.py` (EMAP v1).
+Drohne (aus `/Odometry`). Sie ist der Server; erst wenn sich die Bodenstation verbindet, abonniert sie die Pose
+(die freie Kamera in QGC braucht sie), und sie hört auf, wenn die Bodenstation trennt. Die Karte abonniert sie erst,
+wenn die Bodenstation sie per Steuernachricht verlangt (Typ 3, "Hindernisse an"); bis dahin packt auch der
+Kompressor nicht. Format: `ender_lidar_bridge/map_protocol.py` (EMAP v1).
 
 ```
 ros2 run ender_lidar_bridge map_relay_node

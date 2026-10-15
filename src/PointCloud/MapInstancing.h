@@ -12,8 +12,8 @@
 /// scan, which uses a blue to red ramp.
 ///
 /// The cubes sit at the world points (scene units are centimeters, see PointCloudInstancing::toScenePosition).
-/// The model that carries this instancing takes MapReceiver::modelPosition and modelRotation, which move
-/// the unchanged buffer into the vehicle frame. A new buffer is built only when a new map arrives.
+/// The model that carries this instancing sits in the world scene without any transform, the view moves
+/// the vehicle and the camera instead. A new buffer is built only when a new map arrives.
 class MapInstancing : public QQuick3DInstancing
 {
     Q_OBJECT

@@ -11,7 +11,9 @@ private slots:
     void _testHostFromEnvironment();
     void _testPoseThenMapCutsToRadius();
     void _testMapBeforePoseWaitsForPose();
-    void _testPoseMovesModelNotMap();
+    void _testPoseMovesVehicleNotMap();
+    void _testScanPlacementUsesPoseAtScanStamp();
+    void _testWantMapSendsControlAndDropsMaps();
     void _testFrozenKeepsDisplayedState();
     void _testReceivesOverLocalConnection();
 };

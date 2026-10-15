@@ -10,7 +10,7 @@ die Karte (Weltsystem) zur Drohne ausrichten kann, ohne die Karte neu zu senden.
 Jede Nachricht beginnt mit einem Kopf (12 Bytes, Little-Endian):
     4s  magic        "EMAP"
     B   version      1
-    B   type         1 = Karte, 2 = Pose
+    B   type         1 = Karte, 2 = Pose, 3 = Steuerung
     H   reserved     0
     I   payload_len  Länge der Nutzdaten in Bytes
 
@@ -22,6 +22,11 @@ Typ 1, Karte: die Nutzdaten sind unverändert das zstd-Paket, das Birks
 
 Typ 2, Pose der Drohne im Weltsystem (44 Bytes):
     I stamp_ms, d x, d y, d z, f qx, f qy, f qz, f qw
+
+Typ 3, Steuerung (Bodenstation -> Drohne, 1 Byte): Flags. Bit 0 = die Karte wird gebraucht.
+    Die Pose läuft immer, sobald die Bodenstation verbunden ist (die freie Kamera braucht sie).
+    Die Karte kostet Rechenzeit und Bandbreite und kommt deshalb erst, wenn die Bodenstation sie
+    verlangt. Bis zur ersten Steuernachricht gilt: keine Karte.
 """
 
 import struct
@@ -32,6 +37,8 @@ MAGIC = b"EMAP"
 VERSION = 1
 TYPE_MAP = 1
 TYPE_POSE = 2
+TYPE_CONTROL = 3
+FLAG_WANT_MAP = 0x01
 HEADER = struct.Struct("<4sBBHI")
 POSE = struct.Struct("<Iddd4f")
 MAX_PAYLOAD = 4 * 1024 * 1024  # größer als jede sinnvolle Karte; schützt vor kaputten Längenfeldern
@@ -54,6 +61,17 @@ def encode_pose(stamp_ms: int, position: Tuple[float, float, float],
     """orientation: Quaternion (x, y, z, w)."""
     payload = POSE.pack(stamp_ms & 0xFFFFFFFF, *position, *orientation)
     return encode_message(TYPE_POSE, payload)
+
+
+def encode_control(want_map: bool) -> bytes:
+    return encode_message(TYPE_CONTROL, bytes([FLAG_WANT_MAP if want_map else 0]))
+
+
+def decode_control(payload: bytes) -> Optional[bool]:
+    """Gibt zurück, ob die Karte gewünscht wird (None bei kaputten Nutzdaten)."""
+    if len(payload) != 1:
+        return None
+    return bool(payload[0] & FLAG_WANT_MAP)
 
 
 def decode_pose(payload: bytes) -> Optional[Pose]:

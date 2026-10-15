@@ -78,9 +78,10 @@ inline QByteArray posePayload(quint32 stampMs, double x, double y, double z, flo
     return out;
 }
 
-inline QByteArray poseMessage(double x, double y, double z, float qx = 0, float qy = 0, float qz = 0, float qw = 1)
+inline QByteArray poseMessage(double x, double y, double z, float qx = 0, float qy = 0, float qz = 0, float qw = 1,
+                              quint32 stampMs = 1000)
 {
-    return message(EmapProtocol::kTypePose, posePayload(1000, x, y, z, qx, qy, qz, qw));
+    return message(EmapProtocol::kTypePose, posePayload(stampMs, x, y, z, qx, qy, qz, qw));
 }
 
 inline QByteArray mapMessage()

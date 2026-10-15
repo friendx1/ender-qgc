@@ -133,6 +133,24 @@ Hinweise: In `drone-project` muss `ego.parm` die Werte aus `egoparms.parm` entha
 (lokale Änderung, vor `git pull` `git stash`). Die Windows-Firewall muss QGC im privaten Netz zulassen.
 `Strg+c` beendet eine Node, `clu` räumt die ganze Sim auf.
 
+### Kameras in der 3D-Ansicht (Drohnen-Ansicht und freie Kamera)
+
+Die Punktwolken-Ansicht hat zwei Kameras, umgeschaltet mit dem Button rechts am Rand:
+
+| | Drohnen-Ansicht (Standard) | Freie Kamera (wie RViz) |
+|---|---|---|
+| Kamera | kreist um die Drohne, Drohne bleibt in der Mitte und zeigt nach oben | kreist um einen Fokuspunkt in der Welt, bleibt stehen, wenn die Drohne fliegt |
+| 1 Finger / linke Maustaste | drehen | drehen |
+| 2 Finger | Zoom (ein längeres Ziehen mit zwei Fingern schaltet in die freie Kamera) | Zoom und Verschieben (Pan) |
+| Maus | Rad = Zoom | Rad = Zoom, mittlere oder rechte Taste = Pan |
+| Button | **Freie Kamera** | **Drohne zentrieren** (zurück in die Drohnen-Ansicht) |
+
+Die freie Kamera braucht die Pose der Drohne in der Welt (`/Odometry`, FAST-LIO). QGC verbindet sich dafür mit der
+`map_relay_node` (TCP 19902), auch wenn die Hindernisse aus sind; die Karte wird dann nicht angefordert. Der Scan
+(Drohnen-Koordinaten) wird mit der Pose zum Scan-Zeitpunkt in die Welt gestellt, die Pose dazwischen interpoliert.
+Ohne Pose bleibt der Scan im Ursprung, unten links steht dann ein Hinweis. "Ziel wählen" schaltet immer in die
+Drohnen-Ansicht (Blick von oben) und danach zurück in die freie Kamera, falls sie an war.
+
 ### Hindernis-Karte (SUPER inflate map) in der 3D-Ansicht
 
 Der Button **Hindernisse an/aus** in der Punktwolken-Ansicht zeigt den Sicherheitsabstand, den SUPER um Hindernisse
@@ -141,12 +159,14 @@ legt, als orange Ebene. Der Weg der Daten (Format EMAP v1, siehe `src/PointCloud
 
 ```text
 SUPER /rog_map/inf_occ -> pointcloud_compressor_node (Birk) -> /rog_map/inf_occ_compressed
-  -> map_relay_node (TCP-Server, Port 19902, schickt Karte und Pose) -> QGC (verbindet sich beim Einschalten)
+  -> map_relay_node (TCP-Server, Port 19902, schickt Pose und, auf Wunsch, die Karte) -> QGC
 ```
 
-Die Relay-Node abonniert erst, wenn QGC verbunden ist; beim Ausschalten trennt QGC, dann ruht auch der Kompressor.
-Die Karte bleibt im Weltsystem, die Pose (10 Hz) richtet sie zur Drohne aus. In QGC werden nur Punkte im Umkreis
-von 20 m (`MapReceiver.radius`) behalten.
+Die Relay-Node abonniert erst, wenn QGC verbunden ist, und dann nur die Pose. QGC schickt beim Verbinden eine
+Steuernachricht (Typ 3): "Karte an" erst bei **Hindernisse an**; nur dann abonniert die Node die Karte und packt
+Birks Kompressor. Beim Ausschalten kommt "Karte aus", ist auch die freie Kamera aus, trennt QGC ganz.
+Die Karte bleibt im Weltsystem, in der Szene steht sie ohne Umrechnung; Drohne und Scan werden mit der Pose (10 Hz)
+platziert. In QGC werden nur Punkte im Umkreis von 20 m (`MapReceiver.radius`) behalten.
 
 Im Container, zusätzlich zu `sl` und `launch_super` (jeweils eigenes tmux-Fenster):
 

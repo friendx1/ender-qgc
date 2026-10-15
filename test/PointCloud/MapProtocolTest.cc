@@ -98,10 +98,10 @@ void MapProtocolTest::_testStreamSkipsHugeLengthAndUnknownVersion()
     QCOMPARE(got[0].type, EmapProtocol::kTypePose);
 }
 
-void MapProtocolTest::_testSceneTransformMatchesBodyFrame()
+void MapProtocolTest::_testVehiclePlacementMatchesBodyFrame()
 {
-    // For any pose and any world point: drawing the world point with the node transform must land where the
-    // point sits in the vehicle body frame (x forward, y left, z up), converted to scene coordinates.
+    // For any pose and any point in the vehicle body frame (x forward, y left, z up): a node with the vehicle
+    // placement that carries the point (in scene units) must show it where the world point sits in the world scene.
     QRandomGenerator rng(7);
     for (int i = 0; i < 50; ++i) {
         EmapPose pose;
@@ -109,29 +109,119 @@ void MapProtocolTest::_testSceneTransformMatchesBodyFrame()
         pose.orientation = QQuaternion::fromAxisAndAngle(
             QVector3D(rng.bounded(2.0) - 1.0, rng.bounded(2.0) - 1.0, rng.bounded(2.0) - 1.0).normalized(),
             static_cast<float>(rng.bounded(360.0)));
-        const QVector3D world(rng.bounded(60.0) - 30.0, rng.bounded(60.0) - 30.0, rng.bounded(6.0));
+        const QVector3D body(rng.bounded(60.0) - 30.0, rng.bounded(60.0) - 30.0, rng.bounded(6.0));
 
         QVector3D position;
         QQuaternion rotation;
-        EmapProtocol::sceneTransform(pose, &position, &rotation);
+        EmapProtocol::sceneVehiclePlacement(pose, &position, &rotation);
 
-        const QVector3D body = pose.orientation.inverted().rotatedVector(world - pose.position);
-        const QVector3D expected = PointCloudInstancing::toScenePosition(body);
-        const QVector3D actual = rotation.rotatedVector(PointCloudInstancing::toScenePosition(world)) + position;
+        const QVector3D world = pose.position + pose.orientation.rotatedVector(body);
+        const QVector3D expected = PointCloudInstancing::toScenePosition(world);
+        const QVector3D actual = rotation.rotatedVector(PointCloudInstancing::toScenePosition(body)) + position;
 
         QCOMPARE_FUZZY(actual.x(), expected.x(), 0.05f);
         QCOMPARE_FUZZY(actual.y(), expected.y(), 0.05f);
         QCOMPARE_FUZZY(actual.z(), expected.z(), 0.05f);
     }
 
-    // A vehicle that turned 90 degrees to the left sees the world x axis on its right
+    // A vehicle that turned 90 degrees to the left flies along the world y axis: what is straight ahead of it
+    // (body x) ends up on the left of the world scene (scene -x)
     EmapPose turned;
     turned.orientation = QQuaternion::fromAxisAndAngle(0, 0, 1, 90);
     QVector3D position;
     QQuaternion rotation;
-    EmapProtocol::sceneTransform(turned, &position, &rotation);
-    const QVector3D scene =
+    EmapProtocol::sceneVehiclePlacement(turned, &position, &rotation);
+    const QVector3D ahead =
         rotation.rotatedVector(PointCloudInstancing::toScenePosition(QVector3D(1, 0, 0))) + position;
-    QCOMPARE_FUZZY(scene.x(), 100.0f, 0.05f);  // right on the screen
-    QCOMPARE_FUZZY(scene.z(), 0.0f, 0.05f);
+    QCOMPARE_FUZZY(ahead.x(), -100.0f, 0.05f);
+    QCOMPARE_FUZZY(ahead.z(), 0.0f, 0.05f);
+}
+
+void MapProtocolTest::_testControlMessage()
+{
+    const QByteArray on = EmapProtocol::encodeControl(true);
+    const QByteArray off = EmapProtocol::encodeControl(false);
+    QCOMPARE(on.size(), EmapProtocol::kHeaderSize + 1);
+    QCOMPARE(on, message(EmapProtocol::kTypeControl, QByteArray(1, char(EmapProtocol::kFlagWantMap))));
+    QCOMPARE(off, message(EmapProtocol::kTypeControl, QByteArray(1, char(0))));
+
+    EmapStreamDecoder decoder;
+    const auto got = decoder.feed(on + off);
+    QCOMPARE(got.size(), qsizetype(2));
+    QCOMPARE(got[0].type, EmapProtocol::kTypeControl);
+    QCOMPARE(got[0].payload.size(), qsizetype(1));
+}
+
+namespace {
+EmapPose poseAt(quint32 stampMs, float x, float yawDegrees = 0.0f)
+{
+    EmapPose pose;
+    pose.stampMs = stampMs;
+    pose.position = QVector3D(x, 0, 0);
+    pose.orientation = QQuaternion::fromAxisAndAngle(0, 0, 1, yawDegrees);
+    return pose;
+}
+}  // namespace
+
+void MapProtocolTest::_testPoseHistoryInterpolates()
+{
+    EmapPoseHistory history;
+    QVERIFY(!history.at(1000).has_value());
+
+    history.add(poseAt(1000, 0.0f, 0.0f));
+    history.add(poseAt(1100, 2.0f, 90.0f));
+    history.add(poseAt(1200, 2.0f, 90.0f));
+
+    const auto mid = history.at(1050);
+    QVERIFY(mid.has_value());
+    QCOMPARE_FUZZY(mid->position.x(), 1.0f, 0.001f);
+    // Half of the 90 degrees turn
+    const QVector3D forward = mid->orientation.rotatedVector(QVector3D(1, 0, 0));
+    QCOMPARE_FUZZY(forward.x(), std::cos(qDegreesToRadians(45.0f)), 0.001f);
+    QCOMPARE_FUZZY(forward.y(), std::sin(qDegreesToRadians(45.0f)), 0.001f);
+
+    // Exactly on a stored pose
+    QCOMPARE_FUZZY(history.at(1100)->position.x(), 2.0f, 0.001f);
+    QCOMPARE(history.at(1050)->stampMs, quint32(1050));
+}
+
+void MapProtocolTest::_testPoseHistoryLimits()
+{
+    EmapPoseHistory history;
+    history.add(poseAt(1000, 0.0f));
+    history.add(poseAt(1100, 1.0f));
+
+    // A little before the oldest and after the newest pose the nearest one is used, far outside there is no answer
+    QCOMPARE_FUZZY(history.at(900)->position.x(), 0.0f, 0.001f);
+    QCOMPARE_FUZZY(history.at(1400)->position.x(), 1.0f, 0.001f);
+    QVERIFY(!history.at(1100 + EmapPoseHistory::kToleranceMs + 1).has_value());
+    QVERIFY(!history.at(1000 - EmapPoseHistory::kToleranceMs - 1).has_value());
+
+    // The same stamp replaces, an older one is ignored
+    history.add(poseAt(1100, 5.0f));
+    QCOMPARE(history.size(), 2);
+    QCOMPARE_FUZZY(history.at(1100)->position.x(), 5.0f, 0.001f);
+    history.add(poseAt(1050, 9.0f));
+    QCOMPARE(history.size(), 2);
+
+    // Only the last kKeepMs are kept
+    for (quint32 t = 1200; t <= 9000; t += 100) {
+        history.add(poseAt(t, 1.0f));
+    }
+    QVERIFY(!history.at(2000).has_value());
+    QVERIFY(history.at(8000).has_value());
+
+    // A jump back by more than that means the clock restarted
+    history.add(poseAt(50, 7.0f));
+    QCOMPARE(history.size(), 1);
+    QCOMPARE_FUZZY(history.at(50)->position.x(), 7.0f, 0.001f);
+
+    // The 32 bit stamp wraps around
+    EmapPoseHistory wrapping;
+    wrapping.add(poseAt(0xFFFFFF9Cu, 0.0f));  // 100 ms before the wrap
+    wrapping.add(poseAt(100, 2.0f));          // 100 ms after
+    QCOMPARE(wrapping.size(), 2);
+    const auto atWrap = wrapping.at(0);
+    QVERIFY(atWrap.has_value());
+    QCOMPARE_FUZZY(atWrap->position.x(), 1.0f, 0.001f);
 }

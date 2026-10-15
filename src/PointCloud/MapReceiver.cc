@@ -12,7 +12,6 @@ MapReceiver::MapReceiver(QObject* parent) : QObject(parent)
 {
     const QString envHost = qEnvironmentVariable("ENDER_GOAL_HOST");
     _host = envHost.isEmpty() ? QString::fromLatin1(kDefaultHost) : envHost;
-    _modelRotation = QQuaternion();
 
     _reconnectTimer.setInterval(kReconnectIntervalMs);
     _reconnectTimer.setSingleShot(true);
@@ -39,6 +38,32 @@ void MapReceiver::setActive(bool active)
         _close();
     }
     emit activeChanged();
+}
+
+void MapReceiver::setWantMap(bool wantMap)
+{
+    if (_wantMap == wantMap) {
+        return;
+    }
+    _wantMap = wantMap;
+    if (!_wantMap) {
+        _latestMap = EmapCloud();
+        _mapNeedsPose = false;
+        _setReceiving(false);
+        _clearMap();
+    }
+    _sendControl();
+    emit wantMapChanged();
+}
+
+void MapReceiver::setScanStamp(quint32 stampMs)
+{
+    if (_scanStamp == stampMs) {
+        return;
+    }
+    _scanStamp = stampMs;
+    emit scanStampChanged();
+    _updateScanPlacement();
 }
 
 void MapReceiver::setHost(const QString& host)
@@ -86,6 +111,7 @@ void MapReceiver::setFrozen(bool frozen)
     if (!_frozen) {
         _publishPose();
         _publishMap();
+        _updateScanPlacement();
     }
 }
 
@@ -123,9 +149,21 @@ void MapReceiver::_close()
     _setReceiving(false);
     _setPoseValid(false);
     _hasPose = false;
+    _poseHistory.clear();
     _mapNeedsPose = false;
     _latestMap = EmapCloud();
     _clearMap();
+
+    if (_vehiclePosition != QVector3D() || _vehicleRotation != QQuaternion()) {
+        _vehiclePosition = QVector3D();
+        _vehicleRotation = QQuaternion();
+        emit poseChanged();
+    }
+    if (_scanPosition != QVector3D() || _scanRotation != QQuaternion()) {
+        _scanPosition = QVector3D();
+        _scanRotation = QQuaternion();
+        emit scanPlacementChanged();
+    }
 }
 
 void MapReceiver::_reconnect()
@@ -142,6 +180,7 @@ void MapReceiver::_onConnected()
     _decoder.reset();
     _setErrorString(QString());
     _setConnected(true);
+    _sendControl();
 }
 
 void MapReceiver::_onDisconnected()
@@ -163,6 +202,13 @@ void MapReceiver::_onSocketError()
     // A failed connect does not always report disconnected()
     if (_socket->state() == QAbstractSocket::UnconnectedState) {
         _onDisconnected();
+    }
+}
+
+void MapReceiver::_sendControl()
+{
+    if (_socket && _socket->state() == QAbstractSocket::ConnectedState) {
+        _socket->write(EmapProtocol::encodeControl(_wantMap));
     }
 }
 
@@ -188,7 +234,7 @@ void MapReceiver::handleBytes(const QByteArray& bytes)
             lastMap = &message;
         }
     }
-    if (lastMap) {
+    if (lastMap && _wantMap) {
         if (auto cloud = EmapProtocol::parseMap(lastMap->payload)) {
             _applyMap(std::move(*cloud));
         }
@@ -198,10 +244,12 @@ void MapReceiver::handleBytes(const QByteArray& bytes)
 void MapReceiver::_applyPose(const EmapPose& pose)
 {
     _latestPose = pose;
+    _poseHistory.add(pose);
     _hasPose = true;
     _sinceLastPose.start();
+    _publishPose();  // before poseValid turns true: whoever reacts to that finds the new position
     _setPoseValid(true);
-    _publishPose();
+    _updateScanPlacement();
 
     if (_mapNeedsPose) {
         // The first map arrived before the first pose and could not be cut yet
@@ -240,8 +288,29 @@ void MapReceiver::_publishPose()
     if (_frozen || !_hasPose) {
         return;
     }
-    EmapProtocol::sceneTransform(_latestPose, &_modelPosition, &_modelRotation);
+    EmapProtocol::sceneVehiclePlacement(_latestPose, &_vehiclePosition, &_vehicleRotation);
     emit poseChanged();
+}
+
+void MapReceiver::_updateScanPlacement()
+{
+    if (_frozen) {
+        return;
+    }
+    // Without a pose for that moment the scan stays where it was, a newer pose may still arrive
+    const std::optional<EmapPose> pose = _poseHistory.at(_scanStamp);
+    if (!pose) {
+        return;
+    }
+    QVector3D position;
+    QQuaternion rotation;
+    EmapProtocol::sceneVehiclePlacement(*pose, &position, &rotation);
+    if (position == _scanPosition && rotation == _scanRotation) {
+        return;
+    }
+    _scanPosition = position;
+    _scanRotation = rotation;
+    emit scanPlacementChanged();
 }
 
 void MapReceiver::_publishMap()
