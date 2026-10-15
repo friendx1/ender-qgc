@@ -50,7 +50,22 @@ git add -A && git commit -m "feat(...): ..."   # Conventional Commits, siehe AGE
 git push                     # nach dem Arbeiten
 ```
 
-APK bauen und aufspielen:
+APK lokal auf dem Linux-Rechner bauen (ohne GitHub Actions):
+
+```bash
+cd ~/ender-qgc && git pull
+git submodule update --init --recursive
+ender/tools/build_android_local.sh --install     # --install: danach per adb auf die Funke
+```
+
+Das Skript baut den Workflow `android.yml` nach (Versionen aus `.github/build-config.json`: Qt, NDK, Java, SDK),
+nur für `arm64-v8a`. SDK, NDK, Qt und der Debug-Keystore liegen in `~/ender-android`, die fertige APK in
+`~/ender-apk/QGroundControl.apk`, das Build-Log in `~/ender-android/last-build.log`. Der erste Lauf lädt mehrere GB.
+Die APK ist mit dem lokalen Keystore signiert, nicht mit dem des Workflows: vor der ersten Installation einmal
+`adb uninstall org.mavlink.qgroundcontrol` (die gespeicherten Einstellungen der App gehen dabei verloren), danach
+geht `adb install -r` wieder. Stand: noch nicht auf dem Linux-Rechner ausgeführt.
+
+APK über GitHub Actions bauen und aufspielen (Alternative):
 
 1. GitHub, Repo `ender-qgc`, Reiter **Actions**, Workflow **Android**, **Run workflow**, Branch `ender/pointcloud`, Build type **Release**. Dauer etwa eine Stunde.
 2. Auf der Seite des Laufs unter **Artifacts** `QGroundControl-linux` herunterladen und entpacken.
