@@ -29,6 +29,10 @@ Rectangle {
     property alias mapReceiver: mapRx
     property bool showStatus: true
 
+    /// Height of what covers the top edge of the view (the Fly View toolbar). The address chip and the goal text
+    /// are placed below it, otherwise the toolbar hides them.
+    property real topInset: 0
+
     /// False while the view sits in a small slot, where taps belong to the slot (swap, resize)
     property bool interactive: true
 
@@ -651,9 +655,9 @@ Rectangle {
     // The address of the onboard computer. Tapping it opens the editor. Green when the link is up.
     Rectangle {
         id: hostChip
-        anchors.left: parent.left
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.margins: 6
+        anchors.topMargin: root.topInset + 6
         width: hostChipText.implicitWidth + 16
         height: 28
         radius: 4
@@ -745,7 +749,7 @@ Rectangle {
         id: goalInfo
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: 8
+        anchors.topMargin: root.topInset + 8
         visible: root.goalMode && root._controlsVisible
         horizontalAlignment: Text.AlignHCenter
         color: root._goalTooFar ? "#ff6060" : "white"
@@ -778,7 +782,7 @@ Rectangle {
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: 8
+        anchors.topMargin: root.topInset + 8
         visible: resultToast.running && !root.goalMode && root._controlsVisible
         color: "white"
         font.pixelSize: 18

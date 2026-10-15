@@ -245,8 +245,8 @@ zeichnet je 4 cm einen kleinen Würfel entlang der Linie (`TrajectoryInstancing`
 
 ### Adresse der Drohne auf der Funke einstellen
 
-Auf der Funke lässt sich keine Umgebungsvariable setzen. Oben links in der Punktwolken-Ansicht steht deshalb
-"Drohne: <Adresse>" (grün, wenn die Verbindung steht). Antippen öffnet ein Eingabefeld, "Übernehmen" speichert die
+Auf der Funke lässt sich keine Umgebungsvariable setzen. Oben in der Mitte der Punktwolken-Ansicht, unter der
+QGC-Leiste, steht deshalb "Drohne: <Adresse>" (grün, wenn die Verbindung steht). Antippen öffnet ein Eingabefeld, "Übernehmen" speichert die
 Adresse (QSettings, Datei `Ender/EnderGCS.ini`), sie gilt für Ziele, Pose, Karte und Bahn und bleibt nach einem
 Neustart erhalten. Leer lassen und übernehmen setzt auf `192.168.144.50` zurück. Beim Start gilt die
 Umgebungsvariable `ENDER_GOAL_HOST` (Desktop) vor der gespeicherten Adresse.
@@ -256,4 +256,4 @@ Test der Funke gegen die Sim (Funke im WLAN des Linux-Rechners):
    `adb install -r <apk>`.
 2. IP der Funke im WLAN: `adb shell ip -f inet addr show wlan0`.
 3. Im Container: `ender/sim/start_ender_nodes.sh <IP der Funke> 3000` (der Scan geht an die Funke).
-4. In QGC auf der Funke "Drohne: ..." antippen und die IP des Linux-Rechners eintragen.
+4. In QGC auf der Funke "Drohne: ..." (oben in der Mitte) antippen und die IP des Linux-Rechners eintragen.

@@ -94,6 +94,7 @@ Item {
         PointCloudView {
             id:         cloudControl
             radius:     0
+            topInset:   toolbar.height
         }
 
         // Video, map and point cloud: one fills the screen, the other two sit in small slots at the bottom
