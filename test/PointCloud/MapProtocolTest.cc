@@ -137,6 +137,61 @@ void MapProtocolTest::_testVehiclePlacementMatchesBodyFrame()
     QCOMPARE_FUZZY(ahead.z(), 0.0f, 0.05f);
 }
 
+void MapProtocolTest::_testControlMessageCarriesTrajectoryWish()
+{
+    const quint8 both = EmapProtocol::kFlagWantMap | EmapProtocol::kFlagWantTrajectory;
+    QCOMPARE(EmapProtocol::encodeControl(true, true), message(EmapProtocol::kTypeControl, QByteArray(1, char(both))));
+    QCOMPARE(EmapProtocol::encodeControl(false, true),
+             message(EmapProtocol::kTypeControl, QByteArray(1, char(EmapProtocol::kFlagWantTrajectory))));
+    // As before when the trajectory is not asked for
+    QCOMPARE(EmapProtocol::encodeControl(true), EmapProtocol::encodeControl(true, false));
+}
+
+void MapProtocolTest::_testTrajectoryParsing()
+{
+    const QList<QList<QVector3D>> lines = {
+        {QVector3D(0, 0, 0), QVector3D(1.5f, -2.0f, 0.25f)},
+        {QVector3D(3, 3, 3), QVector3D(4, 4, 4), QVector3D(5, 5, 5)},
+    };
+    const auto got = EmapProtocol::parseTrajectory(trajectoryPayload(EmapProtocol::kKindBackup, lines));
+    QVERIFY(got.has_value());
+    QCOMPARE(got->kind, EmapProtocol::kKindBackup);
+    QCOMPARE(got->lines, lines);
+
+    // Nothing to draw is a valid state: the planner has no trajectory
+    const auto empty = EmapProtocol::parseTrajectory(trajectoryPayload(EmapProtocol::kKindExp, {}));
+    QVERIFY(empty.has_value());
+    QVERIFY(empty->lines.isEmpty());
+
+    // Through the stream decoder as it comes from the socket
+    EmapStreamDecoder decoder;
+    const auto messages = decoder.feed(trajectoryMessage(EmapProtocol::kKindExp, lines));
+    QCOMPARE(messages.size(), qsizetype(1));
+    QCOMPARE(messages[0].type, EmapProtocol::kTypeTrajectory);
+}
+
+void MapProtocolTest::_testTrajectoryRejectsBadInput()
+{
+    const QList<QList<QVector3D>> lines = {{QVector3D(0, 0, 0), QVector3D(1, 0, 0)}};
+    const QByteArray good = trajectoryPayload(EmapProtocol::kKindExp, lines);
+    QVERIFY(EmapProtocol::parseTrajectory(good).has_value());
+
+    QVERIFY(!EmapProtocol::parseTrajectory(QByteArray()).has_value());
+    QVERIFY(!EmapProtocol::parseTrajectory(good.left(good.size() - 1)).has_value());     // cut short
+    QVERIFY(!EmapProtocol::parseTrajectory(good + QByteArray(1, char(0))).has_value());  // bytes left over
+    QVERIFY(!EmapProtocol::parseTrajectory(trajectoryPayload(7, lines)).has_value());    // unknown kind
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    QVERIFY(!EmapProtocol::parseTrajectory(
+                 trajectoryPayload(EmapProtocol::kKindExp, {{QVector3D(0, 0, 0), QVector3D(nan, 0, 0)}}))
+                 .has_value());
+
+    // A line count that promises more than there is
+    QByteArray lying = good;
+    lying[2] = char(5);
+    QVERIFY(!EmapProtocol::parseTrajectory(lying).has_value());
+}
+
 void MapProtocolTest::_testControlMessage()
 {
     const QByteArray on = EmapProtocol::encodeControl(true);

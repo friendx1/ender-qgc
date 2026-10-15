@@ -34,6 +34,8 @@ qt_add_qml_module(PointCloudModule
         PointCloudInstancing.h
         PointCloudReceiver.cc
         PointCloudReceiver.h
+        TrajectoryInstancing.cc
+        TrajectoryInstancing.h
     QML_FILES
         PointCloudQml/PointCloudView.qml
     IMPORTS

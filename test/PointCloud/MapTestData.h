@@ -84,6 +84,30 @@ inline QByteArray poseMessage(double x, double y, double z, float qx = 0, float 
     return message(EmapProtocol::kTypePose, posePayload(stampMs, x, y, z, qx, qy, qz, qw));
 }
 
+inline QByteArray trajectoryPayload(quint8 kind, const QList<QList<QVector3D>>& lines)
+{
+    QByteArray out;
+    out.append(static_cast<char>(kind));
+    out.append(char(0));
+    append<quint16>(out, static_cast<quint16>(lines.size()));
+    for (const QList<QVector3D>& line : lines) {
+        append<quint16>(out, static_cast<quint16>(line.size()));
+        for (const QVector3D& point : line) {
+            for (float v : {point.x(), point.y(), point.z()}) {
+                quint32 bits;
+                std::memcpy(&bits, &v, sizeof(bits));
+                append<quint32>(out, bits);
+            }
+        }
+    }
+    return out;
+}
+
+inline QByteArray trajectoryMessage(quint8 kind, const QList<QList<QVector3D>>& lines)
+{
+    return message(EmapProtocol::kTypeTrajectory, trajectoryPayload(kind, lines));
+}
+
 inline QByteArray mapMessage()
 {
     return message(EmapProtocol::kTypeMap, goldenMapPacket());

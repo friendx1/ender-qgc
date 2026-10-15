@@ -208,3 +208,21 @@ angepasst werden, oder die Relay-Node begrenzt nur die Rate (`map_rate_hz`, Stan
 Ohne Drohne: `python3 tools/fake_map_server.py` (im Ordner `ender/ros2/ender_lidar_bridge`, braucht
 `pip install zstandard numpy`) spielt die Relay-Node nach. Der Laptop zeigt dann einen Raum aus Hüllen, die Drohne
 fliegt im Kreis.
+
+### Geplante Bahn (SUPER exp_traj und backup_traj) in der 3D-Ansicht
+
+Der Button **Bahn an/aus** in der Punktwolken-Ansicht zeigt, was SUPER geplant hat, wie in RViz: die Bahn, der die
+Drohne folgt (grün, `/visualization/exp_traj`), und die Ausweichbahn (cyan, `/visualization/backup_traj`). Beide sind
+Linien im Weltsystem, wie die Karte. Die Bahn kommt über dieselbe TCP-Verbindung wie die Pose (Typ 4, siehe
+`MapProtocol.h`), die Relay-Node braucht dafür nichts Zusätzliches, nur die Steuernachricht (Bit 1 "Bahn gewünscht").
+Ohne den Button abonniert die Relay-Node die Marker nicht.
+
+SUPER veröffentlicht die Bahnen als `visualization_msgs/MarkerArray` (Best Effort), jede Nachricht mit `DELETEALL` und
+dann hunderten kurzen Pfeilen (Typ ARROW, zwei Punkte) im Frame `world`. Die Relay-Node führt denselben Stand wie
+RViz, verkettet die Pfeile zu Linien (`trajectory.py`), dünnt auf höchstens `traj_max_points` (3000) aus und rechnet
+die Punkte per TF von `world` nach `camera_init` um (in der Sim liegt `camera_init` 19,5 cm über `world`). Fehlt
+die TF-Verbindung, bleibt die Bahn unverschoben und das Log warnt. Höchstens `traj_rate_hz` (4) Stände pro Sekunde.
+
+Parameter der Relay-Node: `exp_traj_topic`, `backup_traj_topic`, `traj_rate_hz`, `traj_max_points`, `world_frame`.
+`/visualization/committed_traj` ist bewusst nicht dabei (RViz zeigt es in unserer Sim nicht). Die Anzeige in QGC
+zeichnet je 4 cm einen kleinen Würfel entlang der Linie (`TrajectoryInstancing`).

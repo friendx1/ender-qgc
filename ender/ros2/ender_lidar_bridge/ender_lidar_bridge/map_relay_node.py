@@ -1,4 +1,4 @@
-"""ROS2-Node: schickt die Hindernis-Karte (SUPER inflate map) per TCP zur Bodenstation.
+"""ROS2-Node: schickt die Hindernis-Karte (SUPER inflate map) und die geplanten Bahnen per TCP zur Bodenstation.
 
 Die Karte kommt schon gepackt von Birks pointcloud_compressor_node (Topic
 /rog_map/inf_occ_compressed). Diese Node reicht das Paket unverändert weiter und schickt
@@ -9,6 +9,9 @@ Die Node ist der Server, die Bodenstation verbindet sich. Solange niemand verbun
 abonniert sie nichts: dann arbeitet auch Birks Kompressor nicht (er packt nur, wenn jemand zuhört).
 Ist die Bodenstation verbunden, läuft die Pose (die freie Kamera braucht sie). Die Karte wird erst
 abonniert, wenn die Bodenstation sie per Steuernachricht verlangt ("Hindernisse an").
+Die Bahnen, die SUPER für RViz zeichnet (/visualization/exp_traj und /visualization/backup_traj, Marker aus
+vielen kurzen Pfeilen im Frame "world"), werden ebenfalls erst auf Wunsch abonniert ("Bahn an"), zu Linien
+verkettet und ins Weltsystem der Pose (camera_init) umgerechnet, dafür dient TF.
 
 Start (der Kompressor muss laufen):
     ros2 run ender_lidar_bridge map_relay_node
@@ -16,15 +19,25 @@ Start (der Kompressor muss laufen):
 
 import socket
 import time
-from typing import Optional
+from typing import Dict, List, Optional
 
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import UInt8MultiArray
+from visualization_msgs.msg import MarkerArray
 
-from .map_protocol import TYPE_CONTROL, OutQueue, StreamDecoder, decode_control, encode_map, encode_pose
+from .map_protocol import (
+    KIND_BACKUP, KIND_EXP, TYPE_CONTROL, OutQueue, StreamDecoder, decode_control_wishes, encode_map, encode_pose,
+    encode_trajectory,
+)
+from .trajectory import MarkerTrajectory, limit_points, transform_points
+
+try:  # TF wird nur für die Bahnen gebraucht
+    from tf2_ros import Buffer, TransformListener
+except ImportError:  # pragma: no cover
+    Buffer = TransformListener = None
 
 _SEND_CHUNK = 64 * 1024
 
@@ -37,12 +50,21 @@ class MapRelayNode(Node):
         self.declare_parameter("odom_topic", "/Odometry")
         self.declare_parameter("map_rate_hz", 1.0)    # höchstens so viele Karten pro Sekunde weitergeben
         self.declare_parameter("pose_rate_hz", 10.0)  # Posen pro Sekunde
+        self.declare_parameter("exp_traj_topic", "/visualization/exp_traj")
+        self.declare_parameter("backup_traj_topic", "/visualization/backup_traj")
+        self.declare_parameter("traj_rate_hz", 4.0)       # höchstens so viele Bahn-Stände pro Sekunde
+        self.declare_parameter("traj_max_points", 3000)   # Punkte je Bahn, darüber wird ausgedünnt
+        self.declare_parameter("world_frame", "camera_init")  # Weltsystem der Pose und der Karte
 
         p = self.get_parameter
         self._map_topic = str(p("map_topic").value)
         self._odom_topic = str(p("odom_topic").value)
         self._min_map_interval = 1.0 / max(0.05, float(p("map_rate_hz").value))
         pose_interval = 1.0 / max(0.5, float(p("pose_rate_hz").value))
+        traj_interval = 1.0 / max(0.2, float(p("traj_rate_hz").value))
+        self._traj_topics = {KIND_EXP: str(p("exp_traj_topic").value), KIND_BACKUP: str(p("backup_traj_topic").value)}
+        self._traj_max_points = int(p("traj_max_points").value)
+        self._world_frame = str(p("world_frame").value)
 
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -54,7 +76,12 @@ class MapRelayNode(Node):
         self._queue = OutQueue()
         self._decoder = StreamDecoder()
         self._want_map = False
+        self._want_traj = False
         self._map_sub = None
+        self._traj_subs: List = []
+        self._trajectories: Dict[int, MarkerTrajectory] = {kind: MarkerTrajectory() for kind in self._traj_topics}
+        self._tf_buffer = None
+        self._tf_listener = None
         self._odom_sub = None
         self._latest_odom: Optional[Odometry] = None
         self._last_map_at = 0.0
@@ -64,9 +91,11 @@ class MapRelayNode(Node):
 
         self.create_timer(0.02, self._service)
         self.create_timer(pose_interval, self._queue_pose)
+        self.create_timer(traj_interval, self._queue_trajectories)
         self.get_logger().info(
             f"Warte auf die Bodenstation auf TCP {p('listen_port').value} "
-            f"(Karte {self._map_topic} nur auf Wunsch, höchstens {1 / self._min_map_interval:.1f} Hz)"
+            f"(Karte {self._map_topic} und Bahnen {sorted(self._traj_topics.values())} nur auf Wunsch, "
+            f"Karte höchstens {1 / self._min_map_interval:.1f} Hz)"
         )
 
     # --- Verbindung -------------------------------------------------------------------
@@ -97,8 +126,9 @@ class MapRelayNode(Node):
         self._latest_odom = None
         self._sent_bytes, self._stats_at = 0, time.monotonic()
         self._want_map = False
+        self._want_traj = False
         self._subscribe_odom()
-        self.get_logger().info(f"Bodenstation {address[0]} verbunden, sende die Pose (Karte nur auf Wunsch)")
+        self.get_logger().info(f"Bodenstation {address[0]} verbunden, sende die Pose (Karte und Bahn nur auf Wunsch)")
 
     def _read_client(self) -> None:
         """Die Bodenstation schickt nur Steuernachrichten. Lesen wir 0 Bytes, hat sie getrennt."""
@@ -114,9 +144,10 @@ class MapRelayNode(Node):
             return
         for msg_type, payload in self._decoder.feed(data):
             if msg_type == TYPE_CONTROL:
-                want_map = decode_control(payload)
-                if want_map is not None:
-                    self._set_want_map(want_map)
+                wishes = decode_control_wishes(payload)
+                if wishes is not None:
+                    self._set_want_map(wishes[0])
+                    self._set_want_trajectory(wishes[1])
 
     def _drop_client(self, reason: str) -> None:
         if self._client is not None:
@@ -127,6 +158,7 @@ class MapRelayNode(Node):
         self._client = None
         self._want_map = False
         self._unsubscribe_map()
+        self._set_want_trajectory(False)
         self._unsubscribe_odom()
         self.get_logger().info(f"{reason}, stoppe den Abruf von Pose und Karte")
 
@@ -159,6 +191,27 @@ class MapRelayNode(Node):
             self.destroy_subscription(self._map_sub)
         self._map_sub = None
 
+    def _set_want_trajectory(self, want_traj: bool) -> None:
+        if want_traj == self._want_traj:
+            return
+        self._want_traj = want_traj
+        if want_traj:
+            if self._tf_buffer is None and Buffer is not None:
+                self._tf_buffer = Buffer()
+                self._tf_listener = TransformListener(self._tf_buffer, self)
+            qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=100)
+            for kind, topic in self._traj_topics.items():
+                self._traj_subs.append(
+                    self.create_subscription(MarkerArray, topic, lambda msg, k=kind: self._on_trajectory(k, msg), qos))
+            self.get_logger().info(f"Bahn verlangt, abonniere {sorted(self._traj_topics.values())}")
+        else:
+            for sub in self._traj_subs:
+                self.destroy_subscription(sub)
+            self._traj_subs = []
+            for trajectory in self._trajectories.values():
+                trajectory.clear()
+            self.get_logger().info("Bahn nicht mehr verlangt, stoppe den Abruf der Bahnen")
+
     # --- Daten --------------------------------------------------------------------------
 
     def _on_map(self, msg: UInt8MultiArray) -> None:
@@ -172,6 +225,36 @@ class MapRelayNode(Node):
 
     def _on_odom(self, msg: Odometry) -> None:
         self._latest_odom = msg
+
+    def _on_trajectory(self, kind: int, msg: MarkerArray) -> None:
+        trajectory = self._trajectories[kind]
+        for marker in msg.markers:
+            points = [(p.x, p.y, p.z) for p in marker.points]
+            trajectory.apply(marker.action, marker.ns, marker.id, marker.type, marker.header.frame_id, points)
+
+    def _to_world(self, frame_id: str, points):
+        """Punkte aus dem Frame der Marker (bei SUPER "world") ins Weltsystem der Pose."""
+        if not frame_id or frame_id == self._world_frame:
+            return points
+        try:
+            tf = self._tf_buffer.lookup_transform(self._world_frame, frame_id, rclpy.time.Time())
+        except Exception as e:  # noqa: BLE001 - kein TF, unbekannter Frame, Zeitüberschreitung ...
+            self.get_logger().warning(
+                f"Keine Umrechnung {frame_id} -> {self._world_frame} ({e}), die Bahn bleibt unverschoben",
+                throttle_duration_sec=10.0,
+            )
+            return points
+        t, q = tf.transform.translation, tf.transform.rotation
+        return transform_points(points, (t.x, t.y, t.z), (q.x, q.y, q.z, q.w))
+
+    def _queue_trajectories(self) -> None:
+        if self._client is None or not self._want_traj:
+            return
+        for kind, trajectory in self._trajectories.items():
+            if not trajectory.dirty:
+                continue
+            lines = [self._to_world(frame, points) for frame, points in trajectory.polylines()]
+            self._queue.put_trajectory(kind, encode_trajectory(kind, limit_points(lines, self._traj_max_points)))
 
     def _queue_pose(self) -> None:
         if self._client is None or self._latest_odom is None:

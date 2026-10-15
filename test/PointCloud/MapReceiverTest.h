@@ -14,6 +14,7 @@ private slots:
     void _testPoseMovesVehicleNotMap();
     void _testScanPlacementUsesPoseAtScanStamp();
     void _testWantMapSendsControlAndDropsMaps();
+    void _testTrajectoryOnlyOnWish();
     void _testFrozenKeepsDisplayedState();
     void _testReceivesOverLocalConnection();
 };

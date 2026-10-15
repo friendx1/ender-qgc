@@ -56,6 +56,25 @@ void MapReceiver::setWantMap(bool wantMap)
     emit wantMapChanged();
 }
 
+void MapReceiver::setWantTrajectory(bool wantTrajectory)
+{
+    if (_wantTrajectory == wantTrajectory) {
+        return;
+    }
+    _wantTrajectory = wantTrajectory;
+    if (!_wantTrajectory) {
+        _clearTrajectories();
+    }
+    _sendControl();
+    emit wantTrajectoryChanged();
+}
+
+const QList<QList<QVector3D>>& MapReceiver::trajectory(quint8 kind) const
+{
+    static const QList<QList<QVector3D>> kNone;
+    return kind < _trajectories.size() ? _trajectories[kind] : kNone;
+}
+
 void MapReceiver::setScanStamp(quint32 stampMs)
 {
     if (_scanStamp == stampMs) {
@@ -153,6 +172,7 @@ void MapReceiver::_close()
     _mapNeedsPose = false;
     _latestMap = EmapCloud();
     _clearMap();
+    _clearTrajectories();
 
     if (_vehiclePosition != QVector3D() || _vehicleRotation != QQuaternion()) {
         _vehiclePosition = QVector3D();
@@ -208,7 +228,7 @@ void MapReceiver::_onSocketError()
 void MapReceiver::_sendControl()
 {
     if (_socket && _socket->state() == QAbstractSocket::ConnectedState) {
-        _socket->write(EmapProtocol::encodeControl(_wantMap));
+        _socket->write(EmapProtocol::encodeControl(_wantMap, _wantTrajectory));
     }
 }
 
@@ -232,6 +252,10 @@ void MapReceiver::handleBytes(const QByteArray& bytes)
             }
         } else if (message.type == EmapProtocol::kTypeMap) {
             lastMap = &message;
+        } else if (message.type == EmapProtocol::kTypeTrajectory && _wantTrajectory) {
+            if (auto trajectory = EmapProtocol::parseTrajectory(message.payload)) {
+                _setTrajectory(trajectory->kind, std::move(trajectory->lines));
+            }
         }
     }
     if (lastMap && _wantMap) {
@@ -329,6 +353,22 @@ void MapReceiver::_clearMap()
     }
     _map = EmapCloud();
     emit mapChanged();
+}
+
+void MapReceiver::_setTrajectory(quint8 kind, QList<QList<QVector3D>> lines)
+{
+    if (kind >= _trajectories.size() || (_trajectories[kind].isEmpty() && lines.isEmpty())) {
+        return;
+    }
+    _trajectories[kind] = std::move(lines);
+    emit trajectoryChanged(kind);
+}
+
+void MapReceiver::_clearTrajectories()
+{
+    for (quint8 kind = 0; kind < _trajectories.size(); ++kind) {
+        _setTrajectory(kind, {});
+    }
 }
 
 void MapReceiver::_updateStatus()

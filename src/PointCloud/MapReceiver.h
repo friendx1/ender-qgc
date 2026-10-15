@@ -8,6 +8,7 @@
 #include <QtGui/QVector3D>
 #include <QtNetwork/QTcpSocket>
 #include <QtQmlIntegration/QtQmlIntegration>
+#include <array>
 
 #include "MapProtocol.h"
 
@@ -19,14 +20,16 @@
 /// latest pose, scanPosition/scanRotation for the pose at the moment of the scan).
 ///
 /// While active, the receiver connects to the onboard computer and reconnects when the link breaks.
-/// The pose flows as soon as it is connected. The map is only sent while wantMap is set. Switching it off
-/// closes the connection, which stops the work on the vehicle.
+/// The pose flows as soon as it is connected. The map is only sent while wantMap is set, the planned trajectories
+/// only while wantTrajectory is set. Both are told to the vehicle by a control message, which stops the work
+/// on the vehicle when they are switched off.
 class MapReceiver : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
     Q_PROPERTY(bool wantMap READ wantMap WRITE setWantMap NOTIFY wantMapChanged)
+    Q_PROPERTY(bool wantTrajectory READ wantTrajectory WRITE setWantTrajectory NOTIFY wantTrajectoryChanged)
     Q_PROPERTY(QString host READ host WRITE setHost NOTIFY hostChanged)
     Q_PROPERTY(quint16 port READ port WRITE setPort NOTIFY portChanged)
     Q_PROPERTY(float radius READ radius WRITE setRadius NOTIFY radiusChanged)
@@ -66,6 +69,11 @@ public:
     /// IP address of the onboard computer. Taken from the environment variable ENDER_GOAL_HOST if set,
     /// the same address that receives the flight goals.
     QString host() const { return _host; }
+
+    /// Whether the vehicle should send the trajectories that the planner has (SUPER exp_traj and backup_traj)
+    bool wantTrajectory() const { return _wantTrajectory; }
+
+    void setWantTrajectory(bool wantTrajectory);
 
     void setHost(const QString& host);
 
@@ -117,12 +125,18 @@ public:
     /// Displayed map in world meters, valid until the next mapChanged()
     const EmapCloud& map() const { return _map; }
 
+    /// Latest lines of the trajectory of that kind (EmapProtocol::kKindExp, kKindBackup) in world meters, valid
+    /// until the next trajectoryChanged(). Empty while there is none.
+    const QList<QList<QVector3D>>& trajectory(quint8 kind) const;
+
     /// Feeds received bytes, normally called from the socket. Public so tests need no network.
     void handleBytes(const QByteArray& bytes);
 
 signals:
     void activeChanged();
     void wantMapChanged();
+    void wantTrajectoryChanged();
+    void trajectoryChanged(quint8 kind);
     void scanStampChanged();
     void scanPlacementChanged();
     void hostChanged();
@@ -153,6 +167,8 @@ private:
     void _sendControl();
     void _publishMap();
     void _clearMap();
+    void _setTrajectory(quint8 kind, QList<QList<QVector3D>> lines);
+    void _clearTrajectories();
     void _setConnected(bool connected);
     void _setReceiving(bool receiving);
     void _setPoseValid(bool valid);
@@ -180,6 +196,8 @@ private:
 
     bool _active = false;
     bool _wantMap = true;
+    bool _wantTrajectory = false;
+    std::array<QList<QList<QVector3D>>, EmapProtocol::kKindCount> _trajectories;
     QString _host;
     quint16 _port = kDefaultPort;
     float _radius = kDefaultRadius;

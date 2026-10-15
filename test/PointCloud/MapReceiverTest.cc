@@ -175,6 +175,67 @@ void MapReceiverTest::_testReceivesOverLocalConnection()
     QCOMPARE(receiver.pointCount(), 0);
 }
 
+void MapReceiverTest::_testTrajectoryOnlyOnWish()
+{
+    const QList<QList<QVector3D>> exp = {{QVector3D(0, 0, 0), QVector3D(1, 0, 0), QVector3D(2, 0, 0)}};
+    const QList<QList<QVector3D>> backup = {{QVector3D(0, 1, 0), QVector3D(0, 2, 0)}};
+
+    QTcpServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost, 0));
+
+    MapReceiver receiver;
+    receiver.setHost(QStringLiteral("127.0.0.1"));
+    receiver.setPort(server.serverPort());
+    receiver.setWantMap(false);
+    receiver.setActive(true);
+    QSignalSpy changed(&receiver, &MapReceiver::trajectoryChanged);
+
+    QVERIFY(server.waitForNewConnection(3000));
+    QTcpSocket* peer = server.nextPendingConnection();
+    QVERIFY(peer);
+    QTRY_VERIFY_WITH_TIMEOUT(receiver.connected(), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(peer->bytesAvailable() >= EmapProtocol::kHeaderSize + 1, 3000);
+    QCOMPARE(peer->readAll(), EmapProtocol::encodeControl(false, false));
+
+    // Not wanted: a trajectory that is on its way is dropped, the pose after it still arrives
+    peer->write(trajectoryMessage(EmapProtocol::kKindExp, exp) + poseMessage(0, 0, 0));
+    peer->flush();
+    QTRY_VERIFY_WITH_TIMEOUT(receiver.poseValid(), 3000);
+    QVERIFY(receiver.trajectory(EmapProtocol::kKindExp).isEmpty());
+    QCOMPARE(changed.count(), 0);
+
+    // Asking for it is passed on together with the wish for the map
+    receiver.setWantTrajectory(true);
+    QTRY_VERIFY_WITH_TIMEOUT(peer->bytesAvailable() >= EmapProtocol::kHeaderSize + 1, 3000);
+    QCOMPARE(peer->readAll(), EmapProtocol::encodeControl(false, true));
+
+    // Both kinds are kept apart, the newest state of a kind replaces the previous one
+    peer->write(trajectoryMessage(EmapProtocol::kKindExp, exp) + trajectoryMessage(EmapProtocol::kKindBackup, backup));
+    peer->flush();
+    QTRY_COMPARE_WITH_TIMEOUT(changed.count(), 2, 3000);
+    QCOMPARE(receiver.trajectory(EmapProtocol::kKindExp), exp);
+    QCOMPARE(receiver.trajectory(EmapProtocol::kKindBackup), backup);
+    peer->write(trajectoryMessage(EmapProtocol::kKindExp, {}));
+    peer->flush();
+    QTRY_VERIFY_WITH_TIMEOUT(receiver.trajectory(EmapProtocol::kKindExp).isEmpty(), 3000);
+    QCOMPARE(receiver.trajectory(EmapProtocol::kKindBackup), backup);
+
+    // An unknown kind is ignored, and an unknown kind index has no lines
+    QVERIFY(receiver.trajectory(9).isEmpty());
+
+    // Not wanting it any more empties the display
+    receiver.setWantTrajectory(false);
+    QVERIFY(receiver.trajectory(EmapProtocol::kKindBackup).isEmpty());
+
+    // The same when the connection goes away
+    receiver.setWantTrajectory(true);
+    peer->write(trajectoryMessage(EmapProtocol::kKindBackup, backup));
+    peer->flush();
+    QTRY_VERIFY_WITH_TIMEOUT(!receiver.trajectory(EmapProtocol::kKindBackup).isEmpty(), 3000);
+    receiver.setActive(false);
+    QVERIFY(receiver.trajectory(EmapProtocol::kKindBackup).isEmpty());
+}
+
 void MapReceiverTest::_testWantMapSendsControlAndDropsMaps()
 {
     QTcpServer server;

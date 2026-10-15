@@ -18,6 +18,9 @@ import QGroundControl.PointCloud
 ///
 /// Obstacle map: the button "Hindernisse" connects to the onboard computer and draws the safety margin
 /// that the planner keeps around obstacles (SUPER inflate map) as a second, orange layer.
+///
+/// Trajectory: the button "Bahn" draws what the planner has planned, as in RViz: the trajectory it follows (green,
+/// exp_traj) and the backup trajectory (cyan, backup_traj). Both are lines in the world, like the map.
 Rectangle {
     id: root
 
@@ -40,6 +43,9 @@ Rectangle {
 
     /// Obstacle map on or off. Off by default, so nothing is requested from the vehicle until it is wanted.
     property bool showObstacles: false
+
+    /// Planned trajectories on or off. Off by default, so nothing is requested from the vehicle until it is wanted.
+    property bool showTrajectory: false
 
     readonly property real _minDistance: 150
     readonly property real _maxDistance: 4000
@@ -93,12 +99,13 @@ Rectangle {
         active: root.visible
     }
 
-    // Connected for the obstacle map, the free view and the persistence of the scan: all need the pose of the
-    // vehicle. The map itself is only requested while the obstacles are shown.
+    // Connected for the obstacle map, the trajectories, the free view and the persistence of the scan: all need the
+    // pose of the vehicle. The map and the trajectories are only requested while they are shown.
     MapReceiver {
         id: mapRx
-        active: (root.showObstacles || root.freeView || root.scanPersistenceMs > 0) && root.visible
+        active: (root.showObstacles || root.showTrajectory || root.freeView || root.scanPersistenceMs > 0) && root.visible
         wantMap: root.showObstacles
+        wantTrajectory: root.showTrajectory
         frozen: root.goalMode
         scanStamp: cloudInstancing.stampMs
     }
@@ -240,6 +247,39 @@ Rectangle {
             instancing: MapInstancing {
                 receiver: mapRx
                 pointSize: root.goalMode ? Math.max(8, root._topFov * 3) : 10
+            }
+            materials: DefaultMaterial {
+                diffuseColor: "white"
+                lighting: DefaultMaterial.NoLighting
+            }
+        }
+
+        // Planned trajectories, in the world frame like the map
+        Model {
+            visible: root.showTrajectory && mapRx.active && expInstancing.count > 0
+            source: "#Cube"
+            instancing: TrajectoryInstancing {
+                id: expInstancing
+                receiver: mapRx
+                kind: 0
+                color: "#39ff14"
+                pointSize: root.goalMode ? Math.max(6, root._topFov * 2) : 6
+            }
+            materials: DefaultMaterial {
+                diffuseColor: "white"
+                lighting: DefaultMaterial.NoLighting
+            }
+        }
+
+        Model {
+            visible: root.showTrajectory && mapRx.active && backupInstancing.count > 0
+            source: "#Cube"
+            instancing: TrajectoryInstancing {
+                id: backupInstancing
+                receiver: mapRx
+                kind: 1
+                color: "#00e5ff"
+                pointSize: root.goalMode ? Math.max(5, root._topFov * 1.6) : 5
             }
             materials: DefaultMaterial {
                 diffuseColor: "white"
@@ -478,6 +518,8 @@ Rectangle {
             _enterGoalMode()
         } else if (_hit(obstacleButton, x, y)) {
             showObstacles = !showObstacles
+        } else if (_hit(trajectoryButton, x, y)) {
+            showTrajectory = !showTrajectory
         } else if (_hit(viewButton, x, y)) {
             _toggleView()
         } else if (_hit(cancelButton, x, y)) {
@@ -549,6 +591,14 @@ Rectangle {
             visible: !root.goalMode
             primary: root.showObstacles
             label: root.showObstacles ? qsTr("Hindernisse an") : qsTr("Hindernisse aus")
+        }
+        GoalButton {
+            id: trajectoryButton
+            width: root._buttonWidth
+            height: root._buttonHeight
+            visible: !root.goalMode
+            primary: root.showTrajectory
+            label: root.showTrajectory ? qsTr("Bahn an") : qsTr("Bahn aus")
         }
         GoalButton {
             id: viewButton
@@ -648,6 +698,23 @@ Rectangle {
         font.pixelSize: 12
         text: mapRx.connected ? qsTr("Freie Kamera: warte auf die Pose der Drohne")
                               : qsTr("Freie Kamera: keine Verbindung zur Drohne")
+    }
+
+    Text {
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 6
+        anchors.bottomMargin: 60
+        visible: root.showStatus && root.showTrajectory
+        color: "#7ee06a"
+        font.pixelSize: 12
+        text: {
+            if (!mapRx.connected) {
+                return qsTr("Bahn: keine Verbindung")
+            }
+            var points = expInstancing.count + backupInstancing.count
+            return points > 0 ? qsTr("Bahn: geplant") : qsTr("Bahn: keine geplant")
+        }
     }
 
     Text {

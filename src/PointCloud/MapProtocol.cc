@@ -127,7 +127,57 @@ void EmapProtocol::sceneVehiclePlacement(const EmapPose& pose, QVector3D* positi
     *position = PointCloudInstancing::toScenePosition(pose.position);
 }
 
-QByteArray EmapProtocol::encodeControl(bool wantMap)
+std::optional<EmapTrajectory> EmapProtocol::parseTrajectory(const QByteArray& payload)
+{
+    constexpr int kHeadSize = 4;  // u8 kind, u8 reserved, u16 line_count
+    if (payload.size() < kHeadSize) {
+        return std::nullopt;
+    }
+    const char* p = payload.constData();
+    const char* const end = p + payload.size();
+
+    EmapTrajectory trajectory;
+    trajectory.kind = static_cast<quint8>(p[0]);
+    if (trajectory.kind >= kKindCount) {
+        return std::nullopt;
+    }
+    const quint16 lineCount = readLe<quint16>(p + 2);
+    p += kHeadSize;
+
+    int totalPoints = 0;
+    trajectory.lines.reserve(lineCount);
+    for (quint16 i = 0; i < lineCount; ++i) {
+        if (end - p < 2) {
+            return std::nullopt;
+        }
+        const quint16 count = readLe<quint16>(p);
+        p += 2;
+        if (end - p < qint64(count) * 12) {
+            return std::nullopt;
+        }
+        totalPoints += count;
+        QList<QVector3D> line;
+        line.reserve(count);
+        for (quint16 j = 0; j < count; ++j, p += 12) {
+            const float x = readFloatLe(p);
+            const float y = readFloatLe(p + 4);
+            const float z = readFloatLe(p + 8);
+            if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) {
+                return std::nullopt;
+            }
+            line.append(QVector3D(x, y, z));
+        }
+        if (totalPoints <= kMaxTrajectoryPoints) {
+            trajectory.lines.append(std::move(line));
+        }
+    }
+    if (p != end) {
+        return std::nullopt;
+    }
+    return trajectory;
+}
+
+QByteArray EmapProtocol::encodeControl(bool wantMap, bool wantTrajectory)
 {
     QByteArray out;
     out.append("EMAP", 4);
@@ -139,7 +189,7 @@ QByteArray EmapProtocol::encodeControl(bool wantMap)
     out.append(char(0));
     out.append(char(0));
     out.append(char(0));
-    out.append(static_cast<char>(wantMap ? kFlagWantMap : 0));
+    out.append(static_cast<char>((wantMap ? kFlagWantMap : 0) | (wantTrajectory ? kFlagWantTrajectory : 0)));
     return out;
 }
 

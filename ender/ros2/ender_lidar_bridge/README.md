@@ -89,3 +89,11 @@ python3 -m unittest discover -s . -p "test_*.py" -t . -v
 ```
 
 `tools/fake_sender.py` schickt eine künstliche Szene, damit sich der Empfänger ohne Drohne testen lässt.
+
+## Geplante Bahn (map_relay_node)
+
+Auf Wunsch der Bodenstation ("Bahn an") abonniert die `map_relay_node` `/visualization/exp_traj` und
+`/visualization/backup_traj` (SUPER, `visualization_msgs/MarkerArray`), verkettet die Pfeil-Marker zu Linien,
+rechnet sie per TF von `world` nach `camera_init` um und schickt sie als EMAP-Typ 4 (siehe `map_protocol.py`).
+Parameter: `exp_traj_topic`, `backup_traj_topic`, `traj_rate_hz` (4), `traj_max_points` (3000), `world_frame`
+(`camera_init`). Die Logik ohne ROS steht in `trajectory.py`, Tests in `test/test_trajectory.py`.
