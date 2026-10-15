@@ -172,10 +172,14 @@ Im Container, zusätzlich zu `sl` und `launch_super` (jeweils eigenes tmux-Fenst
 
 ```bash
 source /workspaces/ender-qgc/ender/ros2/install/setup.zsh     # nach colcon build wie oben
-ros2 run drone_control_cpp pointcloud_compressor_node --ros-args \
-  --params-file $(ros2 pkg prefix ender_lidar_bridge)/share/ender_lidar_bridge/config/inf_map_compressor.yaml
+ros2 run drone_control_cpp pointcloud_compressor_node --ros-args -p compression_level:=3 -p 'topic_keys:=[rog_map_inf_occ]' -p rog_map_inf_occ.input_topic:=/rog_map/inf_occ -p rog_map_inf_occ.downsample_leaf_size:=0.4 -p rog_map_inf_occ.max_frequency_hz:=1.0
 ros2 run ender_lidar_bridge map_relay_node
 ```
+
+Die Werte kommen per `-p`, denn `--params-file` mit `config/inf_map_compressor.yaml` wurde von Birks Node mit
+"unknown ROS arguments" abgelehnt (in der Sim am 2026-10-15; die Ursache ist nicht geklärt, wahrscheinlich die
+Liste `topic_keys`). Bei der Liste keine Anführungszeichen um die Einträge setzen: `[rog_map_inf_occ]` geht,
+`['rog_map_inf_occ']` nicht. Gemessen mit diesen Werten: etwa 1300 Punkte, 5 KB je Karte.
 
 Die Parameterdatei stellt den Kompressor auf Raster 0,4 m und 1 Hz (Birks Standard: 0,2 m und 2 Hz, etwa 117 KB je
 Bild). Läuft der Kompressor schon über Birks Launch-File, darf es ihn nicht doppelt geben; dann muss dort der Wert

@@ -2,8 +2,8 @@
 # Gröberes Raster und 1 Hz, damit die Karte über den Funk passt.
 #
 # Start (Kompressor allein, ohne Birks Launch-File):
-#   ros2 run drone_control_cpp pointcloud_compressor_node \
-#     --ros-args --params-file $(ros2 pkg prefix ender_lidar_bridge)/share/ender_lidar_bridge/config/inf_map_compressor.yaml
+#   Diese Datei wurde in der Sim von Birks Node mit "unknown ROS arguments" abgelehnt (--params-file).
+#   Was funktioniert, steht in ENDER.md (Abschnitt Hindernis-Karte): dieselben Werte per -p.
 /**:
   ros__parameters:
     compression_level: 3
