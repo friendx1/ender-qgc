@@ -251,6 +251,11 @@ Adresse (QSettings, Datei `Ender/EnderGCS.ini`), sie gilt für Ziele, Pose, Kart
 Neustart erhalten. Leer lassen und übernehmen setzt auf `192.168.144.50` zurück. Beim Start gilt die
 Umgebungsvariable `ENDER_GOAL_HOST` (Desktop) vor der gespeicherten Adresse.
 
+Datenmenge Drohne -> Funke messen (auf dem Rechner, auf dem die Nodes laufen):
+`ender/tools/measure_bandwidth.sh <IP der Funke> [Sekunden]`. Das Skript zaehlt mit tcpdump alles, was an die Funke
+geht, getrennt nach Port (19900 Scan, 19901 Ziel-Quittungen, 19902 Karte/Pose/Bahn) und gibt kB/s und kbit/s aus.
+Gezaehlt wird die Nutzlast ohne Paketkoepfe. Gemessen wird im WLAN der Sim, nicht auf dem Siyi-Link.
+
 Test der Funke gegen die Sim (Funke im WLAN des Linux-Rechners):
 1. APK bauen (GitHub, Workflow "Android", Branch `ender/pointcloud`, Run workflow, etwa 55 Minuten), herunterladen,
    `adb install -r <apk>`.
