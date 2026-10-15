@@ -8,17 +8,24 @@ import QGroundControl.PointCloud
 ///
 /// Goal mode: freezes the scan, looks straight down and lets the user tap a point. "Senden" sends
 /// that point to the onboard computer as a flight goal.
+///
+/// Obstacle map: the button "Hindernisse" connects to the onboard computer and draws the safety margin
+/// that the planner keeps around obstacles (SUPER inflate map) as a second, orange layer.
 Rectangle {
     id: root
 
     property alias receiver: cloudReceiver
     property alias goalSender: sender
+    property alias mapReceiver: mapRx
     property bool showStatus: true
 
     /// False while the view sits in a small slot, where taps belong to the slot (swap, resize)
     property bool interactive: true
 
     property bool goalMode: false
+
+    /// Obstacle map on or off. Off by default, so nothing is requested from the vehicle until it is wanted.
+    property bool showObstacles: false
 
     readonly property real _minDistance: 150
     readonly property real _maxDistance: 4000
@@ -60,6 +67,12 @@ Rectangle {
     PointCloudReceiver {
         id: cloudReceiver
         active: root.visible
+    }
+
+    MapReceiver {
+        id: mapRx
+        active: root.showObstacles && root.visible
+        frozen: root.goalMode
     }
 
     GoalSender {
@@ -114,6 +127,25 @@ Rectangle {
                 receiver: cloudReceiver
                 // Seen from far above a 4 cm cube is smaller than a pixel
                 pointSize: root.goalMode ? Math.max(4, root._topFov * 3) : 4
+            }
+            materials: DefaultMaterial {
+                diffuseColor: "white"
+                lighting: DefaultMaterial.NoLighting
+            }
+        }
+
+        // Obstacle map. The points are in the world frame; the receiver gives the placement that moves
+        // them into the vehicle frame, so the buffer is not rebuilt when the vehicle flies.
+        Model {
+            id: mapModel
+            visible: mapRx.active && mapRx.poseValid && mapRx.pointCount > 0
+            source: "#Cube"
+            position: mapRx.modelPosition
+            rotation: mapRx.modelRotation
+            opacity: 0.6
+            instancing: MapInstancing {
+                receiver: mapRx
+                pointSize: root.goalMode ? Math.max(8, root._topFov * 3) : 10
             }
             materials: DefaultMaterial {
                 diffuseColor: "white"
@@ -261,6 +293,8 @@ Rectangle {
     function _handleTap(x, y) {
         if (_hit(enterButton, x, y)) {
             _enterGoalMode()
+        } else if (_hit(obstacleButton, x, y)) {
+            showObstacles = !showObstacles
         } else if (_hit(cancelButton, x, y)) {
             _leaveGoalMode()
         } else if (_hit(sendButton, x, y)) {
@@ -322,6 +356,14 @@ Rectangle {
             visible: !root.goalMode
             dimmed: !cloudReceiver.receiving
             label: qsTr("Ziel wählen")
+        }
+        GoalButton {
+            id: obstacleButton
+            width: root._buttonWidth
+            height: root._buttonHeight
+            visible: !root.goalMode
+            primary: root.showObstacles
+            label: root.showObstacles ? qsTr("Hindernisse an") : qsTr("Hindernisse aus")
         }
         GoalButton {
             id: sendButton
@@ -401,6 +443,26 @@ Rectangle {
         text: cloudReceiver.listening
               ? qsTr("Keine Punktwolke\nUDP-Port %1").arg(cloudReceiver.port)
               : qsTr("Empfänger nicht aktiv\n%1").arg(cloudReceiver.errorString)
+    }
+
+    Text {
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 6
+        anchors.bottomMargin: 24
+        visible: root.showStatus && root.showObstacles
+        color: "#e8a34a"
+        font.pixelSize: 12
+        text: {
+            if (!mapRx.connected) {
+                return mapRx.errorString.length > 0 ? qsTr("Hindernisse: keine Verbindung (%1)").arg(mapRx.errorString)
+                                                     : qsTr("Hindernisse: verbinde…")
+            }
+            if (!mapRx.receiving) {
+                return qsTr("Hindernisse: verbunden, warte auf Karte")
+            }
+            return qsTr("Hindernisse: %1 Punkte").arg(mapRx.pointCount)
+        }
     }
 
     Text {

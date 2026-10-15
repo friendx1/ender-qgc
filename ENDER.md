@@ -132,3 +132,35 @@ run-qgc
 Hinweise: In `drone-project` muss `ego.parm` die Werte aus `egoparms.parm` enthalten, sonst fliegt die Sim schlecht
 (lokale Änderung, vor `git pull` `git stash`). Die Windows-Firewall muss QGC im privaten Netz zulassen.
 `Strg+c` beendet eine Node, `clu` räumt die ganze Sim auf.
+
+### Hindernis-Karte (SUPER inflate map) in der 3D-Ansicht
+
+Der Button **Hindernisse an/aus** in der Punktwolken-Ansicht zeigt den Sicherheitsabstand, den SUPER um Hindernisse
+legt, als orange Ebene. Der Weg der Daten (Format EMAP v1, siehe `src/PointCloud/MapProtocol.h` und
+`ender/ros2/ender_lidar_bridge/ender_lidar_bridge/map_protocol.py`):
+
+```text
+SUPER /rog_map/inf_occ -> pointcloud_compressor_node (Birk) -> /rog_map/inf_occ_compressed
+  -> map_relay_node (TCP-Server, Port 19902, schickt Karte und Pose) -> QGC (verbindet sich beim Einschalten)
+```
+
+Die Relay-Node abonniert erst, wenn QGC verbunden ist; beim Ausschalten trennt QGC, dann ruht auch der Kompressor.
+Die Karte bleibt im Weltsystem, die Pose (10 Hz) richtet sie zur Drohne aus. In QGC werden nur Punkte im Umkreis
+von 20 m (`MapReceiver.radius`) behalten.
+
+Im Container, zusätzlich zu `sl` und `launch_super` (jeweils eigenes tmux-Fenster):
+
+```bash
+source /workspaces/ender-qgc/ender/ros2/install/setup.zsh     # nach colcon build wie oben
+ros2 run drone_control_cpp pointcloud_compressor_node --ros-args \
+  --params-file $(ros2 pkg prefix ender_lidar_bridge)/share/ender_lidar_bridge/config/inf_map_compressor.yaml
+ros2 run ender_lidar_bridge map_relay_node
+```
+
+Die Parameterdatei stellt den Kompressor auf Raster 0,4 m und 1 Hz (Birks Standard: 0,2 m und 2 Hz, etwa 117 KB je
+Bild). Läuft der Kompressor schon über Birks Launch-File, darf es ihn nicht doppelt geben; dann muss dort der Wert
+angepasst werden, oder die Relay-Node begrenzt nur die Rate (`map_rate_hz`, Standard 1).
+
+Ohne Drohne: `python3 tools/fake_map_server.py` (im Ordner `ender/ros2/ender_lidar_bridge`, braucht
+`pip install zstandard numpy`) spielt die Relay-Node nach. Der Laptop zeigt dann einen Raum aus Hüllen, die Drohne
+fliegt im Kreis.

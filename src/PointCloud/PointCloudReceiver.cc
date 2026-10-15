@@ -1,5 +1,6 @@
 #include "PointCloudReceiver.h"
 
+#include <QtCore/QVariant>
 #include <QtNetwork/QHostAddress>
 #include <QtNetwork/QNetworkDatagram>
 

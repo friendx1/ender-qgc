@@ -1,6 +1,7 @@
 # ============================================================================
 # PointCloud Module
-# Live LiDAR point cloud from the onboard computer (EPCL v1 over UDP)
+# Live LiDAR point cloud from the onboard computer (EPCL v1 over UDP),
+# obstacle map (EMAP v1 over TCP) and flight goals (EGOL v1 over UDP)
 # ============================================================================
 
 # The unit tests are compiled into the main target and include the headers below
@@ -23,6 +24,12 @@ qt_add_qml_module(PointCloudModule
         GoalProtocol.h
         GoalSender.cc
         GoalSender.h
+        MapInstancing.cc
+        MapInstancing.h
+        MapProtocol.cc
+        MapProtocol.h
+        MapReceiver.cc
+        MapReceiver.h
         PointCloudInstancing.cc
         PointCloudInstancing.h
         PointCloudReceiver.cc
@@ -36,6 +43,7 @@ qt_add_qml_module(PointCloudModule
 
 target_link_libraries(PointCloudModule
     PRIVATE
+        QGCCompression
         QGCLogging
     PUBLIC
         Qt6::Core

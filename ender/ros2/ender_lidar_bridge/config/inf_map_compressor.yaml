@@ -1,0 +1,15 @@
+# Parameter für Birks pointcloud_compressor_node, nur für die Hindernis-Karte (SUPER inflate map).
+# Gröberes Raster und 1 Hz, damit die Karte über den Funk passt.
+#
+# Start (Kompressor allein, ohne Birks Launch-File):
+#   ros2 run drone_control_cpp pointcloud_compressor_node \
+#     --ros-args --params-file $(ros2 pkg prefix ender_lidar_bridge)/share/ender_lidar_bridge/config/inf_map_compressor.yaml
+/**:
+  ros__parameters:
+    compression_level: 3
+    topic_keys:
+      - "rog_map_inf_occ"
+    rog_map_inf_occ:
+      input_topic: "/rog_map/inf_occ"
+      downsample_leaf_size: 0.4   # Meter, 0.0 = aus
+      max_frequency_hz: 1.0

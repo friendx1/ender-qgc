@@ -57,6 +57,29 @@ ros2 run ender_lidar_bridge goal_node
 
 Ohne Drohne testen: `python3 tools/fake_goal_receiver.py --port 19901` nimmt Ziele an und bestätigt sie.
 
+## Hindernis-Karte zur Bodenstation (map_relay_node)
+
+Die Node reicht die Hindernis-Karte, die Birks `pointcloud_compressor_node` schon gepackt auf
+`/rog_map/inf_occ_compressed` veröffentlicht, per TCP an die Bodenstation weiter und schickt dazu die Pose der
+Drohne (aus `/Odometry`). Sie ist der Server; erst wenn sich die Bodenstation verbindet, abonniert sie, und
+sie hört auf, wenn die Bodenstation trennt. Format: `ender_lidar_bridge/map_protocol.py` (EMAP v1).
+
+```
+ros2 run ender_lidar_bridge map_relay_node
+```
+
+| Parameter | Standard | Bedeutung |
+|---|---|---|
+| `listen_port` | `19902` | TCP-Port |
+| `map_topic` | `/rog_map/inf_occ_compressed` | Eingang (Ausgang des Kompressors) |
+| `odom_topic` | `/Odometry` | Pose der Drohne |
+| `map_rate_hz` | `1.0` | höchstens so viele Karten je Sekunde weitergeben |
+| `pose_rate_hz` | `10.0` | Posen je Sekunde |
+
+Ist die Verbindung langsamer als die Karten kommen, wird nur die neueste Karte gesendet, ältere fallen weg.
+`config/inf_map_compressor.yaml` stellt den Kompressor auf Raster 0,4 m und 1 Hz.
+Ohne Drohne testen: `python3 tools/fake_map_server.py` (braucht `pip install zstandard numpy`).
+
 ## Tests (ohne ROS)
 
 ```
