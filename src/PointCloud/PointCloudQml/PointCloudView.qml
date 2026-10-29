@@ -13,6 +13,9 @@ import QGroundControl.PointCloud
 /// wheel zooms. The button "Drohne zentrieren" goes back to the vehicle view. The world pose of the vehicle
 /// comes from the onboard computer (MapReceiver), the scan is placed with the pose it was taken at.
 ///
+/// First person view (button "Drohnen-Sicht"): the camera sits in the vehicle and starts in flight direction. One finger
+/// looks around, also backwards, two fingers change the field of view. Needs the pose of the vehicle like the free view.
+///
 /// Goal mode: freezes the scan, looks straight down and lets the user tap a point. "Senden" sends
 /// that point to the onboard computer as a flight goal.
 ///
@@ -41,6 +44,9 @@ Rectangle {
     /// Free camera in the world instead of the camera that follows the vehicle
     property bool freeView: false
 
+    /// First person view: the camera sits in the vehicle and looks in flight direction. One finger looks around.
+    property bool fpvView: false
+
     /// How long scan points stay visible, in milliseconds. They stay where they were seen while the vehicle flies,
     /// which needs its pose from the onboard computer. 0 shows only the latest scan.
     property int scanPersistenceMs: 5000
@@ -57,6 +63,8 @@ Rectangle {
     readonly property real _panStartTravel: 40      // pixels of two finger travel that switch to the free view
     readonly property real _maxGoalDistance: 40     // meters, the onboard computer rejects farther goals
     readonly property real _topCameraHeight: 30000  // centimeters, far away so the view is almost orthographic
+    readonly property real _minFpvFov: 50
+    readonly property real _maxFpvFov: 110
     readonly property real _minTopFov: 1.5
     readonly property real _maxTopFov: 14
     readonly property real _tapMaxTravel: 14
@@ -74,6 +82,12 @@ Rectangle {
     property real _freeDistance: 900
     property bool _focusOnPose: false   // the focus moves to the vehicle as soon as its pose is known
     property bool _freeBeforeGoal: false
+    property bool _fpvBeforeGoal: false
+
+    // First person view: looking direction relative to the flight direction (yaw 0, pitch 0 = straight ahead)
+    property real _fpvYaw: 0
+    property real _fpvPitch: 0
+    property real _fpvFov: 80
 
     // Picked goal in scene centimeters (x right, z backwards), see PointCloudInstancing.toScenePosition
     // Address of the onboard computer, edited with the label at the top left
@@ -115,7 +129,7 @@ Rectangle {
     MapReceiver {
         id: mapRx
         host: onboard.host
-        active: (root.showObstacles || root.showTrajectory || root.freeView || root.scanPersistenceMs > 0) && root.visible
+        active: (root.showObstacles || root.showTrajectory || root.freeView || root.fpvView || root.scanPersistenceMs > 0) && root.visible
         wantMap: root.showObstacles
         wantTrajectory: root.showTrajectory
         frozen: root.goalMode
@@ -150,7 +164,7 @@ Rectangle {
     View3D {
         id: view3d
         anchors.fill: parent
-        camera: root.goalMode ? topCamera : (root.freeView ? freeCamera : orbitCamera)
+        camera: root.goalMode ? topCamera : (root.fpvView ? fpvCamera : (root.freeView ? freeCamera : orbitCamera))
 
         environment: SceneEnvironment {
             clearColor: root.color
@@ -176,8 +190,23 @@ Rectangle {
         // so that the scan, which is given in the vehicle frame, stays exactly where it was seen.
         Node {
             id: vehicleNode
-            position: root.freeView ? mapRx.vehiclePosition : mapRx.scanPosition
-            rotation: root.freeView ? mapRx.vehicleRotation : mapRx.scanRotation
+            position: (root.freeView || root.fpvView) ? mapRx.vehiclePosition : mapRx.scanPosition
+            rotation: (root.freeView || root.fpvView) ? mapRx.vehicleRotation : mapRx.scanRotation
+
+            // First person camera: sits in the vehicle, which looks along -z. The pivot turns the view around.
+            Node {
+                id: fpvPivot
+                eulerRotation.y: root._fpvYaw
+                eulerRotation.x: root._fpvPitch
+
+                PerspectiveCamera {
+                    id: fpvCamera
+                    fieldOfView: root._fpvFov
+                    fieldOfViewOrientation: PerspectiveCamera.Horizontal
+                    clipNear: 5
+                    clipFar: 20000
+                }
+            }
 
             Node {
                 id: cameraPivot
@@ -204,6 +233,7 @@ Rectangle {
 
             // Vehicle marker: a cone at the center whose tip points in flight direction (-z)
             Model {
+                visible: !root.fpvView
                 source: "#Cone"
                 scale: Qt.vector3d(0.25, 0.5, 0.25)
                 eulerRotation.x: -90
@@ -360,7 +390,7 @@ Rectangle {
                     var panY = midY - _lastMidY
                     if (root.freeView) {
                         root._panBy(panX, panY)
-                    } else {
+                    } else if (!root.fpvView) {
                         _panTravel += Math.abs(panX) + Math.abs(panY)
                         if (_panTravel > root._panStartTravel) {
                             root._enterFreeView()
@@ -432,6 +462,8 @@ Rectangle {
     function _zoomBy(factor) {
         if (goalMode) {
             root._topFov = Math.max(_minTopFov, Math.min(_maxTopFov, root._topFov * factor))
+        } else if (fpvView) {
+            root._fpvFov = Math.max(_minFpvFov, Math.min(_maxFpvFov, root._fpvFov * factor))
         } else if (freeView) {
             root._freeDistance = Math.max(_minDistance, Math.min(_maxFreeDistance, root._freeDistance * factor))
         } else {
@@ -440,7 +472,11 @@ Rectangle {
     }
 
     function _rotateBy(dx, dy) {
-        if (freeView) {
+        if (fpvView) {
+            // The scene follows the finger: dragging right turns the view to the left
+            root._fpvYaw = (root._fpvYaw + dx * 0.4) % 360
+            root._fpvPitch = Math.max(-89, Math.min(89, root._fpvPitch + dy * 0.4))
+        } else if (freeView) {
             root._freeYaw -= dx * 0.4
             root._freePitch = Math.max(-89, Math.min(89, root._freePitch + dy * -0.4))
         } else {
@@ -463,7 +499,7 @@ Rectangle {
     // Switches to the free view and keeps the picture: same distance and tilt, same direction of view, looking
     // at the vehicle. The camera of the vehicle view turns with the vehicle, the free camera is fixed to the world.
     function _enterFreeView() {
-        if (goalMode || freeView) {
+        if (goalMode || freeView || fpvView) {
             return
         }
         var forward = vehicleNode.sceneRotation.times(Qt.vector3d(0, 0, -1))
@@ -488,12 +524,28 @@ Rectangle {
         }
     }
 
+    // Looks forward from the vehicle. Every entry starts in flight direction, level.
+    function _toggleFpvView() {
+        if (fpvView) {
+            fpvView = false
+            return
+        }
+        if (goalMode) {
+            return
+        }
+        _fpvYaw = 0
+        _fpvPitch = 0
+        fpvView = true
+    }
+
     function _enterGoalMode() {
         if (!cloudReceiver.receiving) {
             return
         }
         _hasGoal = false
         // The goal is picked from above in the vehicle frame
+        _fpvBeforeGoal = fpvView
+        fpvView = false
         _freeBeforeGoal = freeView
         freeView = false
         cloudInstancing.frozen = true
@@ -507,6 +559,12 @@ Rectangle {
         if (_freeBeforeGoal) {
             _freeBeforeGoal = false
             freeView = true
+        }
+        if (_fpvBeforeGoal) {
+            _fpvBeforeGoal = false
+            _fpvYaw = 0
+            _fpvPitch = 0
+            fpvView = true
         }
     }
 
@@ -539,6 +597,8 @@ Rectangle {
         if (_hit(hostChip, x, y)) {
             hostInput.text = onboard.host
             _editingHost = true
+        } else if (_hit(fpvButton, x, y)) {
+            _toggleFpvView()
         } else if (_hit(enterButton, x, y)) {
             _enterGoalMode()
         } else if (_hit(obstacleButton, x, y)) {
@@ -602,6 +662,14 @@ Rectangle {
         visible: root._controlsVisible
 
         GoalButton {
+            id: fpvButton
+            width: root._buttonWidth
+            height: root._buttonHeight
+            visible: !root.goalMode
+            primary: root.fpvView
+            label: root.fpvView ? qsTr("Außenansicht") : qsTr("Drohnen-Sicht")
+        }
+        GoalButton {
             id: enterButton
             width: root._buttonWidth
             height: root._buttonHeight
@@ -629,7 +697,7 @@ Rectangle {
             id: viewButton
             width: root._buttonWidth
             height: root._buttonHeight
-            visible: !root.goalMode
+            visible: !root.goalMode && !root.fpvView
             primary: root.freeView
             label: root.freeView ? qsTr("Drohne zentrieren") : qsTr("Freie Kamera")
         }

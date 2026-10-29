@@ -179,6 +179,13 @@ Die freie Kamera braucht die Pose der Drohne in der Welt (`/Odometry`, FAST-LIO)
 (Drohnen-Koordinaten) wird mit der Pose zum Scan-Zeitpunkt in die Welt gestellt, die Pose dazwischen interpoliert.
 Ohne Pose bleibt der Scan im Ursprung, unten links steht dann ein Hinweis.
 
+**Drohnen-Sicht (First Person):** Der Button **Drohnen-Sicht** (über "Ziel wählen") setzt die Kamera in die Drohne. Der Blick
+startet in Flugrichtung; mit einem Finger schaut man frei um sich (auch nach hinten), zwei Finger ändern den Blickwinkel
+(50 bis 110 Grad). Die Kamera dreht mit der Drohne mit (auch Neigung und Rollen aus `/Odometry`). Wegen des Nachleuchtens
+(5 s) verschwinden Punkte hinter der Drohne, sobald das LiDAR sie nicht mehr sieht. Der Button heißt dann **Außenansicht**
+und führt zurück. "Ziel wählen" schaltet vorübergehend in die Ansicht von oben und danach zurück. Die Pose kommt wie bei der
+freien Kamera von der `map_relay_node`.
+
 **Nachleuchten:** Scan-Punkte bleiben 5 s sichtbar (`PointCloudView.scanPersistenceMs`, 0 = nur der letzte Scan). Jeder
 Scan wird mit der Pose zu seinem Zeitstempel in die Welt gestellt und in ein 10-cm-Raster eingetragen; eine Fläche, die
 wieder gesehen wird, frischt nur ihre Zelle auf, die Punktzahl wächst also nicht, solange die Drohne schwebt. Die Punkte
