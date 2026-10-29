@@ -181,7 +181,9 @@ Ohne Pose bleibt der Scan im Ursprung, unten links steht dann ein Hinweis.
 
 **Drohnen-Sicht (First Person):** Der Button **Drohnen-Sicht** (über "Ziel wählen") setzt die Kamera in die Drohne. Der Blick
 startet in Flugrichtung; mit einem Finger schaut man frei um sich (auch nach hinten), zwei Finger ändern den Blickwinkel
-(50 bis 110 Grad). Die Kamera dreht mit der Drohne mit (auch Neigung und Rollen aus `/Odometry`). Wegen des Nachleuchtens
+(50 bis 110 Grad). Die Kamera ist wie ein 3-Achsen-Gimbal stabilisiert: Nicken und Rollen der Drohne werden nicht
+übernommen (Horizont bleibt waagerecht), nur die Blickrichtung folgt der Drohne, geglättet (0,25 s). Position und
+Blickrichtung werden jedes Bild nachgeführt, weil die Pose nur mit 10 Hz kommt. Wegen des Nachleuchtens
 (5 s) verschwinden Punkte hinter der Drohne, sobald das LiDAR sie nicht mehr sieht. Der Button heißt dann **Außenansicht**
 und führt zurück. "Ziel wählen" schaltet vorübergehend in die Ansicht von oben und danach zurück. Die Pose kommt wie bei der
 freien Kamera von der `map_relay_node`.
