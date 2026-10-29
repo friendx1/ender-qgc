@@ -5,7 +5,8 @@ import QGroundControl.PointCloud
 
 /// Live LiDAR point cloud seen from outside the vehicle. Two views:
 ///
-/// Vehicle view (default): the vehicle sits at the center and always points up on the screen.
+/// Vehicle view (default): the vehicle sits at the center and always points up on the screen. The camera is stabilized
+/// like a gimbal: pitch and roll of the vehicle do not tilt the picture, only its heading is followed, smoothed.
 /// One finger or the mouse rotates, wheel or two fingers zoom.
 ///
 /// Free view (like RViz): the camera orbits a focus point in the world and stays there while the vehicle flies.
@@ -92,10 +93,10 @@ Rectangle {
     property real _fpvFov: 80
 
     // Gimbal: heading (degrees around the vertical axis) and position of the camera, eased toward the vehicle pose
-    property real _fpvHeading: 0
-    property vector3d _fpvPosition: Qt.vector3d(0, 0, 0)
-    readonly property real _fpvHeadingTau: 0.25     // seconds, how slowly the heading follows
-    readonly property real _fpvPositionTau: 0.1     // seconds, evens out the 10 Hz steps of the position
+    property real _gimbalHeading: 0
+    property vector3d _gimbalPosition: Qt.vector3d(0, 0, 0)
+    readonly property real _gimbalHeadingTau: 0.25     // seconds, how slowly the heading follows
+    readonly property real _gimbalPositionTau: 0.1     // seconds, evens out the 10 Hz steps of the position
 
     // Picked goal in scene centimeters (x right, z backwards), see PointCloudInstancing.toScenePosition
     // Address of the onboard computer, edited with the label at the top left
@@ -154,17 +155,17 @@ Rectangle {
         }
     }
 
-    // Eases the gimbal camera toward the latest pose of the vehicle, once per frame
+    // Eases the gimbal cameras (first person view and vehicle view) toward the latest pose of the vehicle, once per frame
     FrameAnimation {
-        running: root.fpvView && root.visible
+        running: (root.fpvView || (!root.freeView && !root.goalMode)) && root.visible
         onTriggered: {
             var heading = root._vehicleHeading()
-            var delta = heading - root._fpvHeading
+            var delta = heading - root._gimbalHeading
             delta -= 360 * Math.round(delta / 360)
-            root._fpvHeading += delta * (1 - Math.exp(-frameTime / root._fpvHeadingTau))
+            root._gimbalHeading += delta * (1 - Math.exp(-frameTime / root._gimbalHeadingTau))
 
-            var step = 1 - Math.exp(-frameTime / root._fpvPositionTau)
-            root._fpvPosition = root._fpvPosition.plus(mapRx.vehiclePosition.minus(root._fpvPosition).times(step))
+            var step = 1 - Math.exp(-frameTime / root._gimbalPositionTau)
+            root._gimbalPosition = root._gimbalPosition.plus(mapRx.vehiclePosition.minus(root._gimbalPosition).times(step))
         }
     }
 
@@ -214,8 +215,8 @@ Rectangle {
         // Looking around turns the camera relative to that heading.
         Node {
             id: fpvRig
-            position: root._fpvPosition
-            eulerRotation.y: root._fpvHeading + root._fpvYaw
+            position: root._gimbalPosition
+            eulerRotation.y: root._gimbalHeading + root._fpvYaw
             eulerRotation.x: root._fpvPitch
 
             PerspectiveCamera {
@@ -227,25 +228,29 @@ Rectangle {
             }
         }
 
+        // Vehicle view camera: orbits the vehicle, stabilized like the first person camera. It is not part of the
+        // vehicle, so pitch and roll of the vehicle do not tilt the picture, and the vehicle keeps pointing up on the
+        // screen because the heading is followed (smoothed).
+        Node {
+            id: orbitRig
+            position: root._gimbalPosition
+            eulerRotation.y: root._gimbalHeading + root._yaw
+            eulerRotation.x: root._pitch
+
+            PerspectiveCamera {
+                id: orbitCamera
+                z: root._distance
+                clipNear: 10
+                clipFar: 20000
+            }
+        }
+
         // The vehicle. In the free view it is at its latest pose. In the vehicle view it is at the pose of the scan,
         // so that the scan, which is given in the vehicle frame, stays exactly where it was seen.
         Node {
             id: vehicleNode
             position: (root.freeView || root.fpvView) ? mapRx.vehiclePosition : mapRx.scanPosition
             rotation: (root.freeView || root.fpvView) ? mapRx.vehicleRotation : mapRx.scanRotation
-
-            Node {
-                id: cameraPivot
-                eulerRotation.y: root._yaw
-                eulerRotation.x: root._pitch
-
-                PerspectiveCamera {
-                    id: orbitCamera
-                    z: root._distance
-                    clipNear: 10
-                    clipFar: 20000
-                }
-            }
 
             // Goal mode: straight down, vehicle front at the top of the screen
             PerspectiveCamera {
@@ -523,21 +528,22 @@ Rectangle {
     }
 
     // Switches to the free view and keeps the picture: same distance and tilt, same direction of view, looking
-    // at the vehicle. The camera of the vehicle view turns with the vehicle, the free camera is fixed to the world.
+    // at the vehicle. The camera of the vehicle view follows the heading of the vehicle, the free camera is fixed to
+    // the world. Both are level, so the free camera takes over the picture exactly.
     function _enterFreeView() {
         if (goalMode || freeView || fpvView) {
             return
         }
-        var forward = vehicleNode.sceneRotation.times(Qt.vector3d(0, 0, -1))
-        _freeYaw = _yaw + Math.atan2(-forward.x, -forward.z) * 180 / Math.PI
+        _freeYaw = _gimbalHeading + _yaw
         _freePitch = _pitch
         _freeDistance = _distance
-        _focus = vehicleNode.scenePosition
+        _focus = _gimbalPosition
         _focusOnPose = !mapRx.poseValid
         freeView = true
     }
 
     function _enterVehicleView() {
+        _snapGimbal()
         freeView = false
         _focusOnPose = false
     }
@@ -555,15 +561,20 @@ Rectangle {
     function _vehicleHeading() {
         var forward = mapRx.vehicleRotation.times(Qt.vector3d(0, 0, -1))
         if (Math.hypot(forward.x, forward.z) < 0.2) {
-            return _fpvHeading
+            return _gimbalHeading
         }
         return Math.atan2(-forward.x, -forward.z) * 180 / Math.PI
     }
 
-    // Puts the gimbal camera on the vehicle without easing, looking in flight direction, level
+    // Puts the gimbal on the vehicle without easing
+    function _snapGimbal() {
+        _gimbalHeading = _vehicleHeading()
+        _gimbalPosition = mapRx.vehiclePosition
+    }
+
+    // First person view: camera on the vehicle, looking in flight direction, level
     function _startFpvView() {
-        _fpvHeading = _vehicleHeading()
-        _fpvPosition = mapRx.vehiclePosition
+        _snapGimbal()
         _fpvYaw = 0
         _fpvPitch = 0
         fpvView = true
@@ -596,6 +607,7 @@ Rectangle {
     }
 
     function _leaveGoalMode() {
+        _snapGimbal()
         goalMode = false
         _hasGoal = false
         cloudInstancing.frozen = false

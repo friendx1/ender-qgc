@@ -168,7 +168,7 @@ Die Punktwolken-Ansicht hat zwei Kameras, umgeschaltet mit dem Button rechts am 
 
 | | Drohnen-Ansicht (Standard) | Freie Kamera (wie RViz) |
 |---|---|---|
-| Kamera | kreist um die Drohne, Drohne bleibt in der Mitte und zeigt nach oben | kreist um einen Fokuspunkt in der Welt, bleibt stehen, wenn die Drohne fliegt |
+| Kamera | kreist um die Drohne, Drohne bleibt in der Mitte und zeigt nach oben; Kamera gimbal-stabilisiert (Nicken und Rollen der Drohne kippen das Bild nicht, nur die Blickrichtung folgt geglättet) | kreist um einen Fokuspunkt in der Welt, bleibt stehen, wenn die Drohne fliegt |
 | 1 Finger / linke Maustaste | drehen | drehen |
 | 2 Finger | Zoom (ein längeres Ziehen mit zwei Fingern schaltet in die freie Kamera) | Zoom und Verschieben (Pan) |
 | Maus | Rad = Zoom | Rad = Zoom, mittlere oder rechte Taste = Pan |
