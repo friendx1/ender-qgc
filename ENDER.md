@@ -188,6 +188,12 @@ Blickrichtung werden jedes Bild nachgeführt, weil die Pose nur mit 10 Hz kommt.
 und führt zurück. "Ziel wählen" schaltet vorübergehend in die Ansicht von oben und danach zurück. Die Pose kommt wie bei der
 freien Kamera von der `map_relay_node`.
 
+**Ziel wählen (Ansicht von oben):** Zwei Finger zoomen (bis etwa 220 m Sichtbreite) und verschieben das Bild, mit der
+Maus Rad und mittlere oder rechte Taste. Der Button **Zur Drohne** springt sofort zurück auf die Drohne (blass, solange
+das Bild schon dort ist). Antippen setzt das Ziel wie bisher. Die Drohne nimmt nur Ziele bis 40 m an (`_maxGoalDistance`
+in `PointCloudView.qml`, `max_distance` in `goal_node`). Das Limit ist bewusst so und kann später angehoben werden.
+Die Karte zeigt nur Punkte bis 20 m um die Drohne (`MapReceiver.radius`), der Scan reicht etwa 40 m.
+
 **Nachleuchten:** Scan-Punkte bleiben 5 s sichtbar (`PointCloudView.scanPersistenceMs`, 0 = nur der letzte Scan). Jeder
 Scan wird mit der Pose zu seinem Zeitstempel in die Welt gestellt und in ein 10-cm-Raster eingetragen; eine Fläche, die
 wieder gesehen wird, frischt nur ihre Zelle auf, die Punktzahl wächst also nicht, solange die Drohne schwebt. Die Punkte

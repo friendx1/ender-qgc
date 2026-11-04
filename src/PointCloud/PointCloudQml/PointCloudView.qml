@@ -19,8 +19,9 @@ import QGroundControl.PointCloud
 /// follows the vehicle smoothly. One finger looks around, also backwards, two fingers change the field of view.
 /// Needs the pose of the vehicle like the free view.
 ///
-/// Goal mode: freezes the scan, looks straight down and lets the user tap a point. "Senden" sends
-/// that point to the onboard computer as a flight goal.
+/// Goal mode: freezes the scan, looks straight down and lets the user tap a point. Two fingers zoom out (far enough
+/// to see more than 200 m) and pan, "Zur Drohne" jumps back to the vehicle. "Senden" sends that point to the onboard
+/// computer as a flight goal.
 ///
 /// Obstacle map: the button "Hindernisse" connects to the onboard computer and draws the safety margin
 /// that the planner keeps around obstacles (SUPER inflate map) as a second, orange layer.
@@ -69,7 +70,8 @@ Rectangle {
     readonly property real _minFpvFov: 50
     readonly property real _maxFpvFov: 110
     readonly property real _minTopFov: 1.5
-    readonly property real _maxTopFov: 14
+    readonly property real _maxTopFov: 40           // at 300 m height about 220 m of the plane are visible
+    readonly property real _maxTopPan: 30000        // centimeters, how far the top view can leave the vehicle
     readonly property real _tapMaxTravel: 14
     readonly property int _tapMaxDurationMs: 700
 
@@ -77,6 +79,11 @@ Rectangle {
     property real _pitch: -35
     property real _distance: 900
     property real _topFov: 4.6
+
+    // Goal mode: center of the top view in the vehicle frame (scene centimeters, x right, z backwards)
+    property real _topCenterX: 0
+    property real _topCenterZ: 0
+    readonly property bool _topOffCenter: _topCenterX !== 0 || _topCenterZ !== 0
 
     // Free view: orbit around _focus (scene centimeters in the world)
     property vector3d _focus: Qt.vector3d(0, 0, 0)
@@ -255,7 +262,7 @@ Rectangle {
             // Goal mode: straight down, vehicle front at the top of the screen
             PerspectiveCamera {
                 id: topCamera
-                position: Qt.vector3d(0, root._topCameraHeight, 0)
+                position: Qt.vector3d(root._topCenterX, root._topCameraHeight, root._topCenterZ)
                 eulerRotation.x: -90
                 fieldOfView: root._topFov
                 clipNear: 100
@@ -416,10 +423,10 @@ Rectangle {
 
                 var midX = (touchA.x + touchB.x) / 2
                 var midY = (touchA.y + touchB.y) / 2
-                if (_hasMid && !root.goalMode) {
+                if (_hasMid) {
                     var panX = midX - _lastMidX
                     var panY = midY - _lastMidY
-                    if (root.freeView) {
+                    if (root.goalMode || root.freeView) {
                         root._panBy(panX, panY)
                     } else if (!root.fpvView) {
                         _panTravel += Math.abs(panX) + Math.abs(panY)
@@ -466,7 +473,7 @@ Rectangle {
     // Middle or right mouse button pans, like in RViz. Touch does not come through here.
     DragHandler {
         id: mousePan
-        enabled: root.interactive && !root.goalMode
+        enabled: root.interactive
         target: null
         acceptedDevices: PointerDevice.Mouse
         acceptedButtons: Qt.MiddleButton | Qt.RightButton
@@ -518,7 +525,17 @@ Rectangle {
 
     // Moves the focus so that the scene follows the fingers (dx, dy in pixels)
     function _panBy(dx, dy) {
-        if (!freeView || view3d.height <= 0) {
+        if (view3d.height <= 0) {
+            return
+        }
+        if (goalMode) {
+            // Top view: straight down, so the plane has one scale. The picture follows the fingers.
+            var cmPerPixel = 2 * _topCameraHeight * Math.tan(topCamera.fieldOfView * Math.PI / 360) / view3d.height
+            _topCenterX = Math.max(-_maxTopPan, Math.min(_maxTopPan, _topCenterX - dx * cmPerPixel))
+            _topCenterZ = Math.max(-_maxTopPan, Math.min(_maxTopPan, _topCenterZ - dy * cmPerPixel))
+            return
+        }
+        if (!freeView) {
             return
         }
         var perPixel = 2 * _freeDistance * Math.tan(freeCamera.fieldOfView * Math.PI / 360) / view3d.height
@@ -597,6 +614,8 @@ Rectangle {
             return
         }
         _hasGoal = false
+        _topCenterX = 0
+        _topCenterZ = 0
         // The goal is picked from above in the vehicle frame
         _fpvBeforeGoal = fpvView
         fpvView = false
@@ -664,6 +683,9 @@ Rectangle {
             _leaveGoalMode()
         } else if (_hit(sendButton, x, y)) {
             _sendGoal()
+        } else if (_hit(recenterButton, x, y)) {
+            _topCenterX = 0
+            _topCenterZ = 0
         } else if (goalMode) {
             _pickGoal(x, y)
         }
@@ -762,6 +784,15 @@ Rectangle {
             primary: true
             dimmed: !root._hasGoal || root._goalTooFar || sender.pending
             label: sender.pending ? qsTr("Sende…") : qsTr("Senden")
+        }
+
+        GoalButton {
+            id: recenterButton
+            width: root._buttonWidth
+            height: root._buttonHeight
+            visible: root.goalMode
+            dimmed: !root._topOffCenter
+            label: qsTr("Zur Drohne")
         }
 
         GoalButton {
