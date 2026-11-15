@@ -1,0 +1,44 @@
+{
+  "name": "sim",
+  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README).",
+  "steps": [
+    {
+      "name": "Container",
+      "run": "ender/sim/start_sim_container.sh --detach",
+      "timeout": 120
+    },
+    {
+      "name": "Simulation",
+      "run": "docker exec -d -u devuser -w /workspaces/drone-project ender-sim zsh -ic 'sl'",
+      "timeout": 30,
+      "wait_for": "docker exec -u devuser ender-sim zsh -ic 'ros2 topic list 2>/dev/null | grep -q cloud_registered_body'",
+      "wait_timeout": 240
+    },
+    {
+      "name": "Planer (SUPER)",
+      "run": "docker exec -d -u devuser -w /workspaces/drone-project ender-sim zsh -ic 'launch_super'",
+      "timeout": 30,
+      "wait_for": "docker exec -u devuser ender-sim zsh -ic 'ros2 topic list 2>/dev/null | grep -q rog_map/inf_occ'",
+      "wait_timeout": 120
+    },
+    {
+      "name": "Ender-Nodes",
+      "run": "docker exec -e ENDER_ATTACH=0 -u devuser -w /workspaces/ender-qgc ender-sim zsh -ic 'ender/sim/start_ender_nodes.sh {client_ip} 3000'",
+      "timeout": 60
+    }
+  ],
+  "stop_steps": [
+    {
+      "name": "Ender-Nodes beenden",
+      "run": "docker exec -u devuser -w /workspaces/ender-qgc ender-sim zsh -ic 'ender/sim/start_ender_nodes.sh --stop'",
+      "timeout": 30,
+      "optional": true
+    },
+    {
+      "name": "Container beenden",
+      "run": "docker stop ender-sim",
+      "timeout": 60,
+      "optional": true
+    }
+  ]
+}

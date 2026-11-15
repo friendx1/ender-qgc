@@ -112,6 +112,13 @@ QGC hört auf UDP 19900, sobald das Punktwolken-Fenster sichtbar ist. Beim erste
 
 Flugziel ohne Drohne testen: `python ender\ros2\ender_lidar_bridge\tools\fake_goal_receiver.py --port 19901` nimmt Ziele an und bestätigt sie. In `run-qgc.bat` vor dem Start der App `set ENDER_GOAL_HOST=127.0.0.1` einfügen.
 
+## Starter-Dienst: Software der Drohne per Befehl starten (in Arbeit)
+
+Ziel: Die Befehle, die man heute per SSH tippt, soll ein Button auf der Funke auslösen. Dafür läuft ein kleiner Dienst
+auf dem Host (`ender/launcher/`), der die drei Befehle `start`, `stop`, `status` über UDP 19903 annimmt und feste,
+im Profil hinterlegte Schritte ausführt. Etappe 1 (Dienst, Sim-Profil, Test-Client) ist fertig, die App und das Profil
+für die echte Drohne fehlen noch. Siehe `ender/launcher/README.md`.
+
 ## Simulation auf dem Linux-Rechner (Ziel antippen testen)
 
 Die Drohnen-Software liegt im Repo `BirkS04/drone-project` (privat, nur lesend klonen: `gh auth login`, dann

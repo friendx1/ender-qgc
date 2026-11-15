@@ -6,8 +6,10 @@
 #   - dieses Repo (ender-qgc) wird nach /workspaces/ender-qgc gemountet
 #   - Host-Netzwerk, damit UDP 19901 (Ziele) und 19900 (Punktwolke) vom Laptop erreichbar sind
 #
-# Aufruf auf dem Linux-Rechner:  ender/sim/start_sim_container.sh
+# Aufruf auf dem Linux-Rechner:  ender/sim/start_sim_container.sh [--detach]
 # Läuft der Container schon, öffnet der Aufruf nur ein weiteres Terminal darin.
+# Mit --detach startet der Container im Hintergrund ohne Terminal (für den Starter-Dienst, ender/launcher) und
+# der Aufruf endet sofort. Läuft er schon, passiert nichts.
 #
 # Umgebungsvariablen (alle optional):
 #   ENDER_SIM_IMAGE   Image-Name   (Standard: neuestes vsc-drone-project-*-uid Image)
@@ -18,7 +20,16 @@ NAME="ender-sim"
 ENDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DRONE_DIR="${DRONE_PROJECT_DIR:-$HOME/drone-project}"
 
+DETACH=0
+if [ "${1:-}" = "--detach" ]; then
+    DETACH=1
+fi
+
 if [ "$(docker ps -q -f "name=^${NAME}$")" ]; then
+    if [ "$DETACH" = 1 ]; then
+        echo "Container ${NAME} läuft schon."
+        exit 0
+    fi
     echo "Container ${NAME} läuft schon, öffne ein weiteres Terminal darin."
     exec docker exec -it -u devuser -w /workspaces/drone-project "$NAME" zsh
 fi
@@ -48,7 +59,15 @@ else
     echo "Hinweis: 'xhost' fehlt (sudo apt install x11-xserver-utils), Fenster öffnen sich evtl. nicht." >&2
 fi
 
-exec docker run -it --rm --name "$NAME" \
+if [ "$DETACH" = 1 ]; then
+    RUN_MODE=(-d)
+    RUN_CMD=(sleep infinity)
+else
+    RUN_MODE=(-it)
+    RUN_CMD=(zsh)
+fi
+
+exec docker run "${RUN_MODE[@]}" --rm --name "$NAME" \
     --gpus all \
     -e NVIDIA_VISIBLE_DEVICES=all \
     -e NVIDIA_DRIVER_CAPABILITIES=all \
@@ -60,4 +79,4 @@ exec docker run -it --rm --name "$NAME" \
     -v "${ENDER_DIR}:/workspaces/ender-qgc" \
     -u devuser \
     -w /workspaces/drone-project \
-    "$IMAGE" zsh
+    "$IMAGE" "${RUN_CMD[@]}"

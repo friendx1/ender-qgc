@@ -22,6 +22,8 @@
 # Umgebungsvariablen (alle optional):
 #   ENDER_ROS_WS   Workspace mit ender_lidar_bridge  (Standard: /workspaces/ender-qgc/ender/ros2)
 #   ENDER_SESSION  Name der tmux-Sitzung, falls das Skript nicht in tmux läuft  (Standard: ender)
+#   ENDER_ATTACH   0 = sich am Ende nicht an die tmux-Sitzung hängen (für den Starter-Dienst, es gibt dort kein
+#                  Terminal). Standard: 1.
 #   ENDER_COMPRESSOR  0 = den Kompressor nicht starten (Standard: 1). Nötig, wenn Birks Launch-File ihn schon
 #                  startet, zwei Kompressoren auf demselben Topic gehen nicht.
 set -euo pipefail
@@ -35,7 +37,7 @@ if [ "${ENDER_COMPRESSOR:-1}" != "0" ]; then
 fi
 
 usage() {
-    sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-1}"
 }
 
@@ -110,6 +112,8 @@ done
 
 if [ -n "${TMUX:-}" ]; then
     echo "Fertig. Die Fenster ender-* laufen in dieser tmux-Sitzung (Strg+b w zeigt die Liste)."
+elif [ "${ENDER_ATTACH:-1}" = "0" ]; then
+    echo "Fertig. Die Fenster laufen in der tmux-Sitzung '${SESSION}'."
 else
     echo "Fertig. Hänge mich an die Sitzung '${SESSION}' an (Strg+b d löst sich wieder)."
     exec tmux attach -t "$SESSION"
