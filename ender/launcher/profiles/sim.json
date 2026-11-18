@@ -1,6 +1,6 @@
 {
   "name": "sim",
-  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README).",
+  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README). Einzeln stoppbar sind nur die Ender-Nodes; Container, Simulation und Planer lassen sich mit dem allgemeinen stop beenden.",
   "steps": [
     {
       "name": "Container",
@@ -24,7 +24,9 @@
     {
       "name": "Ender-Nodes",
       "run": "docker exec -e ENDER_ATTACH=0 -u devuser -w /workspaces/ender-qgc ender-sim zsh -ic 'ender/sim/start_ender_nodes.sh {client_ip} 3000'",
-      "timeout": 60
+      "timeout": 60,
+      "stop": "docker exec -u devuser -w /workspaces/ender-qgc ender-sim zsh -ic 'ender/sim/start_ender_nodes.sh --stop'",
+      "stop_timeout": 30
     }
   ],
   "stop_steps": [

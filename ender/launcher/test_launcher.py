@@ -149,6 +149,110 @@ class LauncherTest(unittest.TestCase):
         launcher.start("10.0.0.1")
         self.assertEqual(wait_for_state(launcher, ("running", "error"))["state"], "running")
 
+    def test_steps_are_listed_before_anything_runs(self) -> None:
+        launcher = self.make([Step("a", "true"), Step("b", "true", stop="true")])
+        snapshot = launcher.snapshot()
+        self.assertEqual(snapshot["state"], "stopped")
+        self.assertEqual([s["name"] for s in snapshot["steps"]], ["a", "b"])
+        self.assertEqual([s["state"] for s in snapshot["steps"]], ["pending", "pending"])
+        self.assertEqual([s["can_stop"] for s in snapshot["steps"]], [False, True])
+
+    def test_single_step_runs_alone(self) -> None:
+        launcher = self.make([Step("a", "echo a >> log"), Step("b", "echo b >> log")])
+        launcher.run_step(1, "10.0.0.1")
+        snapshot = wait_for_state(launcher, ("partial", "error"))
+        self.assertEqual(snapshot["state"], "partial")
+        self.assertEqual([s["state"] for s in snapshot["steps"]], ["pending", "ok"])
+        self.assertEqual((self.dir / "log").read_text().split(), ["b"])
+
+    def test_steps_one_after_the_other_end_in_running(self) -> None:
+        launcher = self.make([Step("a", "true"), Step("b", "true")])
+        launcher.run_step(0, "10.0.0.1")
+        wait_for_state(launcher, ("partial",))
+        launcher.run_step(1, "10.0.0.1")
+        self.assertEqual(wait_for_state(launcher, ("running", "error"))["state"], "running")
+
+    def test_start_skips_steps_that_are_done(self) -> None:
+        launcher = self.make([Step("a", "echo a >> log"), Step("b", "echo b >> log")])
+        launcher.run_step(0, "10.0.0.1")
+        wait_for_state(launcher, ("partial",))
+        launcher.start("10.0.0.1")
+        self.assertEqual(wait_for_state(launcher, ("running", "error"))["state"], "running")
+        self.assertEqual((self.dir / "log").read_text().split(), ["a", "b"])
+
+    def test_single_step_can_be_run_again(self) -> None:
+        launcher = self.make([Step("a", "echo x >> log")])
+        launcher.run_step(0, "10.0.0.1")
+        wait_for_state(launcher, ("running",))
+        launcher.run_step(0, "10.0.0.1")
+        time.sleep(0.3)
+        wait_for_state(launcher, ("running",))
+        self.assertEqual((self.dir / "log").read_text().split(), ["x", "x"])
+
+    def test_failed_step_can_be_retried_alone(self) -> None:
+        launcher = self.make([Step("a", "true"), Step("b", "test -f go")])
+        launcher.start("10.0.0.1")
+        snapshot = wait_for_state(launcher, ("error",))
+        self.assertEqual([s["state"] for s in snapshot["steps"]], ["ok", "failed"])
+        (self.dir / "go").write_text("")
+        launcher.run_step(1, "10.0.0.1")
+        self.assertEqual(wait_for_state(launcher, ("running", "error"))["state"], "running")
+
+    def test_single_step_is_refused_while_busy(self) -> None:
+        launcher = self.make([Step("a", "sleep 0.5"), Step("b", "echo b > b")])
+        launcher.run_step(0, "10.0.0.1")
+        launcher.run_step(1, "10.0.0.1")
+        self.assertIn("Beschäftigt", launcher.snapshot()["message"])
+        wait_for_state(launcher, ("partial",))
+        self.assertFalse((self.dir / "b").exists())
+
+    def test_stop_step_stops_only_that_step(self) -> None:
+        launcher = self.make(
+            [Step("a", "true"), Step("b", "true", stop="echo gestoppt > stopped")],
+            [Step("s", "true")],
+        )
+        launcher.start("10.0.0.1")
+        wait_for_state(launcher, ("running",))
+        launcher.stop_step(1, "10.0.0.1")
+        snapshot = wait_for_state(launcher, ("partial",))
+        self.assertEqual([s["state"] for s in snapshot["steps"]], ["ok", "pending"])
+        self.assertTrue((self.dir / "stopped").exists())
+
+    def test_stop_step_without_a_stop_command(self) -> None:
+        launcher = self.make([Step("a", "true")])
+        launcher.start("10.0.0.1")
+        wait_for_state(launcher, ("running",))
+        launcher.stop_step(0, "10.0.0.1")
+        snapshot = launcher.snapshot()
+        self.assertEqual(snapshot["state"], "running")
+        self.assertIn("keinen Einzel-Stopp", snapshot["message"])
+
+    def test_stop_step_failure_is_reported(self) -> None:
+        launcher = self.make([Step("a", "true", stop="echo geht nicht; exit 1")])
+        launcher.start("10.0.0.1")
+        wait_for_state(launcher, ("running",))
+        launcher.stop_step(0, "10.0.0.1")
+        time.sleep(0.3)
+        snapshot = launcher.snapshot()
+        self.assertEqual(snapshot["state"], "running")
+        self.assertIn("geht nicht", snapshot["message"])
+
+    def test_guard_also_covers_stop_step(self) -> None:
+        launcher = self.make([Step("a", "true", stop="echo x > x")], guard="exit 1")
+        launcher.start("10.0.0.1")
+        wait_for_state(launcher, ("running",))
+        launcher.stop_step(0, "10.0.0.1")
+        self.assertIn("Stoppen gesperrt", launcher.snapshot()["message"])
+        self.assertFalse((self.dir / "x").exists())
+
+    def test_stop_after_partial_start_resets_everything(self) -> None:
+        launcher = self.make([Step("a", "true"), Step("b", "true")], [Step("s", "true")])
+        launcher.run_step(0, "10.0.0.1")
+        wait_for_state(launcher, ("partial",))
+        launcher.stop("10.0.0.1")
+        snapshot = wait_for_state(launcher, ("stopped",))
+        self.assertEqual([s["state"] for s in snapshot["steps"]], ["pending", "pending"])
+
 
 class ServerTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -198,6 +302,26 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.launcher.snapshot()["state"], "stopped")
         self.assertIsNotNone(ask("127.0.0.1", server.port, "status", 3, token="geheim"))
 
+    def test_single_step_over_udp(self) -> None:
+        profile = Profile("test", (Step("a", "true"), Step("b", "true", stop="true")), ())
+        self.launcher = Launcher(profile, Path(self._tmp.name), poll_interval=0.05)
+        server = self.serve()
+        reply = ask("127.0.0.1", server.port, "step", 20, step=1)
+        self.assertEqual(reply["seq"], 20)
+        wait_for_state(self.launcher, ("partial",))
+        reply = ask("127.0.0.1", server.port, "status", 21)
+        self.assertEqual([s["state"] for s in reply["steps"]], ["pending", "ok"])
+        reply = ask("127.0.0.1", server.port, "stop_step", 22, step=1)
+        wait_for_state(self.launcher, ("stopped",))
+
+    def test_unknown_step_is_refused(self) -> None:
+        server = self.serve()
+        for bad in (-1, 5, "a", True, None):
+            request = {"v": 1, "seq": 1, "cmd": "step", "step": bad}
+            reply = json.loads(server.handle(json.dumps(request).encode(), "127.0.0.1"))
+            self.assertEqual(reply["error"], "unknown step", bad)
+        self.assertEqual(self.launcher.snapshot()["state"], "stopped")
+
     def test_reply_fits_into_one_datagram(self) -> None:
         steps = tuple(Step(f"Schritt {i}", "echo " + "x" * 90 + "; exit 1") for i in range(12))
         launcher = Launcher(Profile("test", steps, ()), Path(self._tmp.name), poll_interval=0.05)
@@ -223,6 +347,21 @@ class ProfileTest(unittest.TestCase):
         self.assertEqual(profile.name, "sim")
         self.assertTrue(profile.steps)
         self.assertTrue(any("{client_ip}" in s.run for s in profile.steps))
+
+    def test_step_names_must_be_unique(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "p.json"
+            path.write_text(
+                json.dumps({"name": "p", "steps": [{"name": "a", "run": "true"}] * 2}),
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_profile(path)
+
+    def test_sim_profile_has_a_single_stop_for_the_nodes(self) -> None:
+        profile = load_profile(Path(__file__).parent / "profiles" / "sim.json")
+        stoppable = [s.name for s in profile.steps if s.stop]
+        self.assertEqual(stoppable, ["Ender-Nodes"])
 
 
 if __name__ == "__main__":
