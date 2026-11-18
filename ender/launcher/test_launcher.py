@@ -358,10 +358,10 @@ class ProfileTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_profile(path)
 
-    def test_sim_profile_has_a_single_stop_for_the_nodes(self) -> None:
+    def test_sim_profile_can_stop_the_planner_and_the_nodes_alone(self) -> None:
         profile = load_profile(Path(__file__).parent / "profiles" / "sim.json")
         stoppable = [s.name for s in profile.steps if s.stop]
-        self.assertEqual(stoppable, ["Ender-Nodes"])
+        self.assertEqual(stoppable, ["Planer (SUPER)", "Ender-Nodes"])
 
 
 if __name__ == "__main__":

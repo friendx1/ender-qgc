@@ -1,6 +1,6 @@
 {
   "name": "sim",
-  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README). Einzeln stoppbar sind nur die Ender-Nodes; Container, Simulation und Planer lassen sich mit dem allgemeinen stop beenden.",
+  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README). Einzeln stoppbar sind der Planer (SIGINT an den ros2 launch, ungeprueft) und die Ender-Nodes; Container, Simulation und Planer lassen sich mit dem allgemeinen stop beenden.",
   "steps": [
     {
       "name": "Container",
@@ -19,7 +19,9 @@
       "run": "docker exec -d -u devuser -w /workspaces/drone-project ender-sim zsh -ic 'launch_super'",
       "timeout": 30,
       "wait_for": "docker exec -u devuser ender-sim zsh -ic 'ros2 topic list 2>/dev/null | grep -q rog_map/inf_occ'",
-      "wait_timeout": 120
+      "wait_timeout": 120,
+      "stop": "docker exec -u devuser ender-sim zsh -ic \"pkill -INT -f '[s]uper_planner.launch.py'\"",
+      "stop_timeout": 30
     },
     {
       "name": "Ender-Nodes",
