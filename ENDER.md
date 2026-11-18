@@ -122,8 +122,9 @@ Etappe 2 (App): In der Punktwolken-Ansicht öffnet der Button **Prozesse** eine 
 einem Start-Knopf je Schritt (`step`), **Alles starten** und **Alles stoppen** (`stop`). Die App nutzt dieselbe Adresse
 wie die Ziele ("Drohne: …", oben in der Mitte), denn der Dienst läuft auf demselben Rechner (Sim: Linux-Rechner,
 später: Onboard-PC). Sie fragt den Dienst nur, solange die Liste offen ist (`LauncherClient`, `LauncherProtocol`).
-Einen Einzel-Stopp pro Schritt gibt es in der App bewusst noch nicht, und das Stoppen ist noch nicht gesperrt, solange
-die Drohne scharf ist: Beides gehört zum Profil für die echte Drohne. Das Profil für die echte Drohne fehlt noch.
+Schritte, die der Dienst einzeln stoppen kann (Planer und Nodes, `can_stop`), haben zusätzlich einen Knopf **Stopp**
+(`stop_step`). Das Stoppen ist noch nicht gesperrt, solange die Drohne scharf ist: Das gehört zum Profil für die echte
+Drohne. Das Profil für die echte Drohne fehlt noch.
 Siehe `ender/launcher/README.md`.
 
 ## Simulation auf dem Linux-Rechner (Ziel antippen testen)

@@ -86,6 +86,14 @@ void LauncherClient::startStep(int index)
     _sendCommand(QStringLiteral("step"), index);
 }
 
+void LauncherClient::stopStep(int index)
+{
+    if (index < 0 || index >= _reply.steps.size() || !_reply.steps[index].canStop) {
+        return;
+    }
+    _sendCommand(QStringLiteral("stop_step"), index);
+}
+
 void LauncherClient::stopAll()
 {
     _sendCommand(QStringLiteral("stop"));

@@ -63,6 +63,9 @@ public:
     /// Runs only this step (a step number as the launcher lists them), also when it is done already
     Q_INVOKABLE void startStep(int index);
 
+    /// Stops only this step, if the launcher knows how (canStop of the step)
+    Q_INVOKABLE void stopStep(int index);
+
     /// Stops everything, one process after another
     Q_INVOKABLE void stopAll();
 

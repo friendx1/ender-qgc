@@ -729,6 +729,12 @@ Rectangle {
                     }
                     break
                 }
+                if (row && _hit(row.stopButton, x, y)) {
+                    if (ready) {
+                        launcher.stopStep(i)
+                    }
+                    break
+                }
             }
         }
     }
@@ -951,6 +957,7 @@ Rectangle {
                     id: stepRow
                     required property var modelData
                     property alias startButton: stepStart
+                    property alias stopButton: stepStop
                     width: launcherColumn.width
                     height: 44
 
@@ -966,12 +973,24 @@ Rectangle {
                     }
                     Text {
                         id: stepState
-                        anchors.right: stepStart.left
+                        anchors.right: stepStop.left
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
                         color: root._launcherStepColor(stepRow.modelData.state)
                         font.pixelSize: 14
                         text: root._launcherStepText(stepRow.modelData.state)
+                    }
+                    // Only the steps the launcher can stop on their own (the planner and the nodes)
+                    GoalButton {
+                        id: stepStop
+                        anchors.right: stepStart.left
+                        anchors.rightMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: visible ? 90 : 0
+                        height: 40
+                        visible: stepRow.modelData.canStop
+                        dimmed: !launcher.reachable || launcher.busy
+                        label: qsTr("Stopp")
                     }
                     GoalButton {
                         id: stepStart

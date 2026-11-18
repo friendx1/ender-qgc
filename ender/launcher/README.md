@@ -75,7 +75,7 @@ Sim-Profils nicht, denn `sl` und `launch_super` stammen aus Birks Container und 
 
 1. Sim: Schritte im Profil an die echten Befehle anpassen, bis `start` bis `running` durchläuft.
 2. Etappe 2 in der Sim auf dem Laptop und der Funke prüfen. Für die echte Drohne: "Stoppen" im Flug sperren, solange die
-   Drohne scharf ist, und den Einzel-Stopp von Planer und Nodes (`stop_step`) in die App aufnehmen.
+   Drohne scharf ist.
 3. Profil `real` für den Onboard-PC (Zenoh-Router, `sr`, Nodes, optional SUPER), Dienst per systemd beim Einschalten.
    Dafür brauchen wir Birks Skripte `start_real.sh`, `start_zenoh` und die Definition von `launch_super`.
    Beachten: `sr` ruft `cleanup.sh` auf (beendet tmux und `ros2`-Prozesse), unsere Nodes müssen danach starten.
