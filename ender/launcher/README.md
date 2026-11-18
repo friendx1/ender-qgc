@@ -20,7 +20,7 @@ echte Drohne fehlt noch.
 - `step <Nr>` führt nur diesen einen Schritt aus (auch wenn er schon fertig ist, dann startet er neu). So startest du die
   Prozesse einzeln nacheinander. Es wird nicht geprüft, ob die Schritte davor schon liefen, die Reihenfolge ist deine
   Sache.
-- `stop_step <Nr>` beendet nur diesen Schritt (im Test-Client: `stop-super` und `stop-nodes`), wenn das Profil dafür einen eigenen Befehl (`stop`) kennt. Die anderen
+- `stop_step <Nr>` beendet nur diesen Schritt (im Test-Client: `stop-planer` und `stop-nodes`), wenn das Profil dafür einen eigenen Befehl (`stop`) kennt. Die anderen
   Schritte bleiben, wie sie sind. Im Sim-Profil geht das für den Planer (SUPER) und die Ender-Nodes, Container und Simulation beendest du mit dem
   allgemeinen `stop`.
 - Schritte behalten ihren Zustand (pending, running, ok, failed). Ein Häkchen heißt nur, dass der Schritt gestartet wurde
@@ -46,7 +46,7 @@ python3 ender/launcher/launcher_client.py 127.0.0.1 step Simulation --watch
 python3 ender/launcher/launcher_client.py 127.0.0.1 step Planer --watch
 python3 ender/launcher/launcher_client.py 127.0.0.1 step Nodes --watch
 python3 ender/launcher/launcher_client.py 127.0.0.1 stop-nodes            # nur die Nodes beenden, dann neu starten
-python3 ender/launcher/launcher_client.py 127.0.0.1 stop-super            # nur den Planer (SUPER) beenden
+python3 ender/launcher/launcher_client.py 127.0.0.1 stop-planer            # nur den Planer (SUPER) beenden
 ```
 Schlägt ein Schritt fehl, steht der Fehler daneben. Beheben und denselben Schritt noch einmal mit `step` starten, die
 anderen bleiben, wie sie sind.

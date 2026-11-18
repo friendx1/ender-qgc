@@ -5,7 +5,7 @@
     python launcher_client.py 127.0.0.1 start --watch     # run all steps that are not done yet, follow them
     python launcher_client.py 127.0.0.1 step 2 --watch    # run only step 2 (number as in status, or its name)
     python launcher_client.py 127.0.0.1 step Planer --watch
-    python launcher_client.py 127.0.0.1 stop-super        # shortcut: stop only the planner (SUPER)
+    python launcher_client.py 127.0.0.1 stop-planer        # shortcut: stop only the planner (SUPER)
     python launcher_client.py 127.0.0.1 stop-nodes        # shortcut: stop only the Ender nodes
     python launcher_client.py 127.0.0.1 stop
 
@@ -66,7 +66,7 @@ def show(reply: dict) -> None:
 
 
 # Shortcuts for stopping one step by (part of) its name
-SHORTCUTS = {"stop-super": "Planer", "stop-nodes": "Nodes"}
+SHORTCUTS = {"stop-planer": "Planer", "stop-nodes": "Nodes"}
 
 
 def resolve_step(reply: dict, wanted: str) -> int | None:
@@ -83,7 +83,7 @@ def main() -> int:
     parser.add_argument("host")
     parser.add_argument(
         "command",
-        choices=["start", "stop", "status", "step", "stop-super", "stop-nodes"],
+        choices=["start", "stop", "status", "step", "stop-planer", "stop-nodes"],
     )
     parser.add_argument("step", nargs="?", help="step number or name (only for step)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
