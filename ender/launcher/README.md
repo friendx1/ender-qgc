@@ -45,7 +45,7 @@ python3 ender/launcher/launcher_client.py 127.0.0.1 step 0 --watch        # Cont
 python3 ender/launcher/launcher_client.py 127.0.0.1 step Simulation --watch
 python3 ender/launcher/launcher_client.py 127.0.0.1 step Planer --watch
 python3 ender/launcher/launcher_client.py 127.0.0.1 step Nodes --watch
-python3 ender/launcher/launcher_client.py 127.0.0.1 stop-step Nodes       # nur die Nodes beenden, dann neu starten
+python3 ender/launcher/launcher_client.py 127.0.0.1 stop-nodes            # nur die Nodes beenden, dann neu starten
 python3 ender/launcher/launcher_client.py 127.0.0.1 stop-super            # nur den Planer (SUPER) beenden
 ```
 Schlägt ein Schritt fehl, steht der Fehler daneben. Beheben und denselben Schritt noch einmal mit `step` starten, die

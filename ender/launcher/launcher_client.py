@@ -7,6 +7,7 @@
     python launcher_client.py 127.0.0.1 step Planer --watch
     python launcher_client.py 127.0.0.1 stop-step Nodes   # stop only this step (number or name, if the profile says how)
     python launcher_client.py 127.0.0.1 stop-super        # shortcut: stop only the planner (SUPER)
+    python launcher_client.py 127.0.0.1 stop-nodes        # shortcut: stop only the Ender nodes
     python launcher_client.py 127.0.0.1 stop
 
 The same datagrams the ground station sends. Uses only the standard library.
@@ -65,6 +66,10 @@ def show(reply: dict) -> None:
         print(f"  {index} {SYMBOLS.get(step['state'], '?')} {step['name']}  {step['detail']}{stop}")
 
 
+# Shortcuts for stopping one step by (part of) its name
+SHORTCUTS = {"stop-super": "Planer", "stop-nodes": "Nodes"}
+
+
 def resolve_step(reply: dict, wanted: str) -> int | None:
     """Turns a step number or (part of) a name into the number of the step."""
     names = [step["name"] for step in reply.get("steps", [])]
@@ -79,7 +84,7 @@ def main() -> int:
     parser.add_argument("host")
     parser.add_argument(
         "command",
-        choices=["start", "stop", "status", "step", "stop-step", "stop-super"],
+        choices=["start", "stop", "status", "step", "stop-step", "stop-super", "stop-nodes"],
     )
     parser.add_argument("step", nargs="?", help="step number or name (for step and stop-step)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -90,10 +95,10 @@ def main() -> int:
         help="keep asking until the state no longer changes by itself",
     )
     args = parser.parse_args()
-    if args.command == "stop-super":
+    if args.command in SHORTCUTS:
         if args.step is not None:
-            parser.error("stop-super takes no step")
-        args.command, args.step = "stop-step", "Planer"
+            parser.error(f"{args.command} takes no step")
+        args.command, args.step = "stop-step", SHORTCUTS[args.command]
     needs_step = args.command in ("step", "stop-step")
     if needs_step != (args.step is not None):
         parser.error("step and stop-step need a step number or name, the others do not")
