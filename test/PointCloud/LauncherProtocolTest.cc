@@ -31,9 +31,9 @@ void LauncherProtocolTest::_testEncodeStepRequestCarriesTheStep()
 void LauncherProtocolTest::_testDecodeReply()
 {
     const QByteArray datagram =
-        R"({"v":1,"seq":7,"profile":"sim","state":"partial","message":"Planer: Zeitueberschreitung","steps":[)"
-        R"({"name":"Container","state":"ok","detail":"","can_stop":false},)"
-        R"({"name":"Planer (SUPER)","state":"failed","detail":"kein Topic","can_stop":true}]})";
+        R"json({"v":1,"seq":7,"profile":"sim","state":"partial","message":"Planer: Zeitueberschreitung","steps":[)json"
+        R"json({"name":"Container","state":"ok","detail":"","can_stop":false},)json"
+        R"json({"name":"Planer (SUPER)","state":"failed","detail":"kein Topic","can_stop":true}]})json";
 
     const auto reply = LauncherProtocol::decodeReply(datagram);
 
@@ -57,9 +57,9 @@ void LauncherProtocolTest::_testBadRepliesAreIgnored()
     QVERIFY(!LauncherProtocol::decodeReply("no json").has_value());
     QVERIFY(!LauncherProtocol::decodeReply("[1,2]").has_value());
     // Wrong version
-    QVERIFY(!LauncherProtocol::decodeReply(R"({"v":2,"seq":1,"state":"stopped","steps":[]})").has_value());
+    QVERIFY(!LauncherProtocol::decodeReply(R"json({"v":2,"seq":1,"state":"stopped","steps":[]})json").has_value());
     // No sequence
-    QVERIFY(!LauncherProtocol::decodeReply(R"({"v":1,"state":"stopped","steps":[]})").has_value());
+    QVERIFY(!LauncherProtocol::decodeReply(R"json({"v":1,"state":"stopped","steps":[]})json").has_value());
     // An error answer has no state
-    QVERIFY(!LauncherProtocol::decodeReply(R"({"v":1,"seq":3,"error":"unknown step"})").has_value());
+    QVERIFY(!LauncherProtocol::decodeReply(R"json({"v":1,"seq":3,"error":"unknown step"})json").has_value());
 }
