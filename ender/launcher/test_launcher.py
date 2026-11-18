@@ -218,6 +218,20 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual([s["state"] for s in snapshot["steps"]], ["ok", "pending"])
         self.assertTrue((self.dir / "stopped").exists())
 
+    def test_stopping_a_step_that_ends_all_resets_the_later_ones(self) -> None:
+        launcher = self.make(
+            [
+                Step("a", "true", stop="true", stop_ends_all=True),
+                Step("b", "true"),
+                Step("c", "true"),
+            ]
+        )
+        launcher.start("10.0.0.1")
+        wait_for_state(launcher, ("running",))
+        launcher.stop_step(0, "10.0.0.1")
+        snapshot = wait_for_state(launcher, ("stopped",))
+        self.assertEqual([s["state"] for s in snapshot["steps"]], ["pending"] * 3)
+
     def test_stop_step_without_a_stop_command(self) -> None:
         launcher = self.make([Step("a", "true")])
         launcher.start("10.0.0.1")
@@ -358,10 +372,12 @@ class ProfileTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_profile(path)
 
-    def test_sim_profile_can_stop_the_planner_and_the_nodes_alone(self) -> None:
+    def test_sim_profile_can_stop_every_step_alone(self) -> None:
         profile = load_profile(Path(__file__).parent / "profiles" / "sim.json")
-        stoppable = [s.name for s in profile.steps if s.stop]
-        self.assertEqual(stoppable, ["Planer (SUPER)", "Ender-Nodes"])
+        self.assertTrue(all(step.stop for step in profile.steps))
+        self.assertTrue(profile.steps[0].stop_ends_all)
+        self.assertIn("ender_sim.pid", profile.steps[1].run)
+        self.assertIn("ender_sim.pid", profile.steps[1].stop or "")
 
 
 if __name__ == "__main__":

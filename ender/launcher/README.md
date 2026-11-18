@@ -21,8 +21,9 @@ echte Drohne fehlt noch.
   Prozesse einzeln nacheinander. Es wird nicht geprüft, ob die Schritte davor schon liefen, die Reihenfolge ist deine
   Sache.
 - `stop_step <Nr>` beendet nur diesen Schritt, wenn das Profil dafür einen eigenen Befehl (`stop`) kennt. Die anderen
-  Schritte bleiben, wie sie sind. Im Sim-Profil geht das für den Planer (SUPER) und die Ender-Nodes, Container und Simulation beendest du mit dem
-  allgemeinen `stop`.
+  Schritte bleiben, wie sie sind. Im Sim-Profil geht das für alle vier Schritte. Die Simulation merkt sich beim Start die PID ihrer
+  Shell (`/tmp/ender_sim.pid`), `ender/sim/stop_tree.sh` beendet dann den ganzen Prozessbaum (erst SIGINT, dann SIGTERM,
+  dann SIGKILL). Wer den Container stoppt (`stop_ends_all`), setzt damit auch alle Schritte danach zurück.
 - Schritte behalten ihren Zustand (pending, running, ok, failed). Ein Häkchen heißt nur, dass der Schritt gestartet wurde
   und seine Bedingung zu dem Zeitpunkt erfüllt war, nicht, dass der Prozess heute noch lebt.
 - `stop` bricht einen laufenden Start ab und führt dann die Stopp-Schritte aus. Mit `stop_guard` im Profil lässt sich
