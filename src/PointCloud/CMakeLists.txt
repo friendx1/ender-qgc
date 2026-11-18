@@ -24,6 +24,10 @@ qt_add_qml_module(PointCloudModule
         GoalProtocol.h
         GoalSender.cc
         GoalSender.h
+        LauncherClient.cc
+        LauncherClient.h
+        LauncherProtocol.cc
+        LauncherProtocol.h
         MapInstancing.cc
         MapInstancing.h
         MapProtocol.cc

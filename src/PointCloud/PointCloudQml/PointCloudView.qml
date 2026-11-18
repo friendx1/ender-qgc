@@ -109,6 +109,9 @@ Rectangle {
     // Address of the onboard computer, edited with the label at the top left
     property bool _editingHost: false
 
+    // The list of the processes on the onboard computer (starter service), opened with the button "Prozesse"
+    property bool _showLauncher: false
+
     property bool _hasGoal: false
     property real _goalSceneX: 0
     property real _goalSceneZ: 0
@@ -138,6 +141,13 @@ Rectangle {
 
     OnboardAddress {
         id: onboard
+    }
+
+    // Starts and stops the software on the onboard computer. Only asks the service while the list is open.
+    LauncherClient {
+        id: launcher
+        host: onboard.host
+        active: root._showLauncher && root.visible && !root.goalMode
     }
 
     // Connected for the obstacle map, the trajectories, the free view and the persistence of the scan: all need the
@@ -666,9 +676,15 @@ Rectangle {
         if (_editingHost) {
             return
         }
+        if (_showLauncher) {
+            _handleLauncherTap(x, y)
+            return
+        }
         if (_hit(hostChip, x, y)) {
             hostInput.text = onboard.host
             _editingHost = true
+        } else if (_hit(launcherButton, x, y)) {
+            _showLauncher = true
         } else if (_hit(fpvButton, x, y)) {
             _toggleFpvView()
         } else if (_hit(enterButton, x, y)) {
@@ -688,6 +704,62 @@ Rectangle {
             _topCenterZ = 0
         } else if (goalMode) {
             _pickGoal(x, y)
+        }
+    }
+
+    // While the list of the processes is open it takes every tap, a tap next to it closes it
+    function _handleLauncherTap(x, y) {
+        var ready = launcher.reachable && !launcher.busy
+        if (_hit(launcherClose, x, y) || !_hit(launcherPanel, x, y)) {
+            _showLauncher = false
+        } else if (_hit(launcherStartAll, x, y)) {
+            if (ready) {
+                launcher.startAll()
+            }
+        } else if (_hit(launcherStopAll, x, y)) {
+            if (ready) {
+                launcher.stopAll()
+            }
+        } else {
+            for (var i = 0; i < launcherSteps.count; i++) {
+                var row = launcherSteps.itemAt(i)
+                if (row && _hit(row.startButton, x, y)) {
+                    if (ready) {
+                        launcher.startStep(i)
+                    }
+                    break
+                }
+            }
+        }
+    }
+
+    function _launcherStateText(state) {
+        switch (state) {
+        case "stopped": return qsTr("Nichts gestartet")
+        case "partial": return qsTr("Teilweise gestartet")
+        case "running": return qsTr("Alles läuft")
+        case "starting": return qsTr("Startet…")
+        case "stopping": return qsTr("Stoppt…")
+        case "error": return qsTr("Fehler")
+        default: return ""
+        }
+    }
+
+    function _launcherStepText(state) {
+        switch (state) {
+        case "ok": return qsTr("fertig")
+        case "running": return qsTr("läuft…")
+        case "failed": return qsTr("Fehler")
+        default: return qsTr("offen")
+        }
+    }
+
+    function _launcherStepColor(state) {
+        switch (state) {
+        case "ok": return "#7ee06a"
+        case "running": return "#e8a34a"
+        case "failed": return "#ff6060"
+        default: return "#aab4be"
         }
     }
 
@@ -736,6 +808,13 @@ Rectangle {
         spacing: 8
         visible: root._controlsVisible
 
+        GoalButton {
+            id: launcherButton
+            width: root._buttonWidth
+            height: root._buttonHeight
+            visible: !root.goalMode
+            label: qsTr("Prozesse")
+        }
         GoalButton {
             id: fpvButton
             width: root._buttonWidth
@@ -822,6 +901,112 @@ Rectangle {
             color: mapRx.connected ? "#7ee06a" : "#aab4be"
             font.pixelSize: 13
             text: qsTr("Drohne: %1").arg(onboard.host)
+        }
+    }
+
+    // The processes on the onboard computer: state of every step, start all, start one, stop all
+    Rectangle {
+        id: launcherPanel
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 24, 460)
+        height: launcherColumn.implicitHeight + 24
+        radius: 8
+        color: "#1c252d"
+        border.color: "#aab4be"
+        visible: root._showLauncher && root._controlsVisible && !root.goalMode
+
+        Column {
+            id: launcherColumn
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 12
+            spacing: 8
+
+            Text {
+                color: "white"
+                font.pixelSize: 15
+                text: qsTr("Prozesse auf der Drohne")
+            }
+
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                font.pixelSize: 14
+                color: !launcher.reachable ? "#ff6060" : (launcher.state === "error" ? "#ff6060" : "#7ee06a")
+                text: {
+                    if (!launcher.reachable) {
+                        return qsTr("Keine Verbindung zum Starter-Dienst (%1)").arg(onboard.host)
+                    }
+                    var text = root._launcherStateText(launcher.state)
+                    return launcher.message.length > 0 ? text + ": " + launcher.message : text
+                }
+            }
+
+            Repeater {
+                id: launcherSteps
+                model: launcher.steps
+
+                Item {
+                    id: stepRow
+                    required property var modelData
+                    property alias startButton: stepStart
+                    width: launcherColumn.width
+                    height: 44
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: stepState.left
+                        anchors.rightMargin: 8
+                        elide: Text.ElideRight
+                        color: "white"
+                        font.pixelSize: 16
+                        text: stepRow.modelData.name
+                    }
+                    Text {
+                        id: stepState
+                        anchors.right: stepStart.left
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: root._launcherStepColor(stepRow.modelData.state)
+                        font.pixelSize: 14
+                        text: root._launcherStepText(stepRow.modelData.state)
+                    }
+                    GoalButton {
+                        id: stepStart
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 90
+                        height: 40
+                        dimmed: !launcher.reachable || launcher.busy
+                        label: stepRow.modelData.state === "ok" ? qsTr("Neu") : qsTr("Start")
+                    }
+                }
+            }
+
+            Row {
+                spacing: 8
+
+                GoalButton {
+                    id: launcherStartAll
+                    height: 48
+                    primary: true
+                    dimmed: !launcher.reachable || launcher.busy
+                    label: qsTr("Alles starten")
+                }
+                GoalButton {
+                    id: launcherStopAll
+                    height: 48
+                    dimmed: !launcher.reachable || launcher.busy
+                    label: qsTr("Alles stoppen")
+                }
+                GoalButton {
+                    id: launcherClose
+                    height: 48
+                    label: qsTr("Schließen")
+                }
+            }
         }
     }
 

@@ -116,8 +116,15 @@ Flugziel ohne Drohne testen: `python ender\ros2\ender_lidar_bridge\tools\fake_go
 
 Ziel: Die Befehle, die man heute per SSH tippt, soll ein Button auf der Funke auslösen. Dafür läuft ein kleiner Dienst
 auf dem Host (`ender/launcher/`), der feste Befehle über UDP 19903 annimmt (`start`, `stop`, `status`, dazu `step` und
-`stop_step`, um die Schritte einzeln nacheinander zu starten) und im Profil hinterlegte Schritte ausführt. Etappe 1 (Dienst, Sim-Profil, Test-Client) ist fertig, die App und das Profil
-für die echte Drohne fehlen noch. Siehe `ender/launcher/README.md`.
+`stop_step`, um die Schritte einzeln nacheinander zu starten) und im Profil hinterlegte Schritte ausführt. Etappe 1 (Dienst, Sim-Profil, Test-Client) ist fertig.
+
+Etappe 2 (App): In der Punktwolken-Ansicht öffnet der Button **Prozesse** eine Liste mit dem Zustand jedes Schritts,
+einem Start-Knopf je Schritt (`step`), **Alles starten** und **Alles stoppen** (`stop`). Die App nutzt dieselbe Adresse
+wie die Ziele ("Drohne: …", oben in der Mitte), denn der Dienst läuft auf demselben Rechner (Sim: Linux-Rechner,
+später: Onboard-PC). Sie fragt den Dienst nur, solange die Liste offen ist (`LauncherClient`, `LauncherProtocol`).
+Einen Einzel-Stopp pro Schritt gibt es in der App bewusst noch nicht, und das Stoppen ist noch nicht gesperrt, solange
+die Drohne scharf ist: Beides gehört zum Profil für die echte Drohne. Das Profil für die echte Drohne fehlt noch.
+Siehe `ender/launcher/README.md`.
 
 ## Simulation auf dem Linux-Rechner (Ziel antippen testen)
 

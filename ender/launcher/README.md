@@ -3,10 +3,10 @@
 Ein kleiner Dienst, der auf dem **Host** läuft (nicht im ROS-Container) und auf feste Befehle hört. Er führt die
 Schritte aus, die man sonst per SSH im Terminal tippt, und meldet jeden Schritt zurück. Man kann alles auf einmal
 starten oder **jeden Schritt einzeln nacheinander**, um beim Fehlersuchen genau zu sehen, wo es hakt. Die App bekommt
-später Buttons dafür (Etappe 2).
+Buttons dafür (Etappe 2).
 
-Stand: **Etappe 1** (Dienst, Sim-Profil, Test-Client, Tests). Die App kennt den Dienst noch nicht, das Profil für die
-echte Drohne fehlt noch.
+Stand: **Etappe 1** (Dienst, Sim-Profil, Test-Client, Tests) und **Etappe 2** (Button "Prozesse" mit Liste in der
+Punktwolken-Ansicht der App, `src/PointCloud/LauncherClient.*`). Das Profil für die echte Drohne fehlt noch.
 
 ## Was er tut und was nicht
 
@@ -74,8 +74,8 @@ Sim-Profils nicht, denn `sl` und `launch_super` stammen aus Birks Container und 
 ## Nächste Schritte
 
 1. Sim: Schritte im Profil an die echten Befehle anpassen, bis `start` bis `running` durchläuft.
-2. Etappe 2: Button und Statuszeile in der Punktwolken-Ansicht (UDP-Client in QGC, gleiche Datagramme wie der
-   Test-Client). Im Flug sperren wir "Stoppen", solange die Drohne scharf ist.
+2. Etappe 2 in der Sim auf dem Laptop und der Funke prüfen. Für die echte Drohne: "Stoppen" im Flug sperren, solange die
+   Drohne scharf ist, und den Einzel-Stopp von Planer und Nodes (`stop_step`) in die App aufnehmen.
 3. Profil `real` für den Onboard-PC (Zenoh-Router, `sr`, Nodes, optional SUPER), Dienst per systemd beim Einschalten.
    Dafür brauchen wir Birks Skripte `start_real.sh`, `start_zenoh` und die Definition von `launch_super`.
    Beachten: `sr` ruft `cleanup.sh` auf (beendet tmux und `ros2`-Prozesse), unsere Nodes müssen danach starten.
