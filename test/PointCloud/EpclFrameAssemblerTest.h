@@ -14,6 +14,7 @@ private slots:
     void _testEmptyFrame();
     void _testIncompleteFrameDroppedByNewerFrame();
     void _testLateChunkOfOldFrameIgnored();
+    void _testRestartedSenderIsAccepted();
     void _testBadMagicAndVersion();
     void _testTruncatedDatagram();
     void _testInconsistentChunks();

@@ -61,8 +61,14 @@ std::optional<EpclFrame> EpclFrameAssembler::feed(const QByteArray& datagram)
     }
 
     if (_hasNewest && _isOlder(sequence, _newest)) {
-        // Late datagram of a scan we already gave up on
-        return std::nullopt;
+        if (static_cast<quint32>(_newest - sequence) < kRestartGap) {
+            // Late datagram of a scan we already gave up on
+            return std::nullopt;
+        }
+        // Far behind: the sender restarted (for example the nodes on the drone) and counts from the start again.
+        // Without this, every new scan would look late until the new numbers pass the old ones.
+        qCInfo(EpclFrameAssemblerLog) << "Sender restarted: scan" << sequence << "after" << _newest;
+        reset();
     }
 
     if (!_hasNewest || _isOlder(_newest, sequence)) {

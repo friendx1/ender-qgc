@@ -24,7 +24,9 @@ struct EpclFrame
 /// A point is x, y, z as int16 centimeters, optionally followed by u8 intensity.
 ///
 /// An incomplete scan is dropped as soon as a newer scan starts, because a partial cloud
-/// would be misleading. Pure logic, no sockets, so it can be unit tested without a network.
+/// would be misleading. A scan that is only a few numbers older than the newest one is a late datagram and is
+/// ignored. A scan that is much older means the sender restarted and counts from zero again, so the assembler starts
+/// over with the new numbers. Pure logic, no sockets, so it can be unit tested without a network.
 class EpclFrameAssembler
 {
 public:
@@ -32,6 +34,9 @@ public:
     static constexpr quint8 kVersion = 1;
     static constexpr quint8 kFlagIntensity = 0x01;
     static constexpr quint32 kMaxPointsPerFrame = 200000;
+
+    /// A scan this many numbers behind the newest one (or more) comes from a restarted sender, not from a late datagram
+    static constexpr quint32 kRestartGap = 16;
 
     /// Feeds one datagram. Returns the finished scan when this datagram completed it.
     std::optional<EpclFrame> feed(const QByteArray& datagram);

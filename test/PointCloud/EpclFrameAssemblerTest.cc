@@ -158,6 +158,21 @@ void EpclFrameAssemblerTest::_testLateChunkOfOldFrameIgnored()
     QCOMPARE(assembler.badPackets(), quint64(0));
 }
 
+void EpclFrameAssemblerTest::_testRestartedSenderIsAccepted()
+{
+    EpclFrameAssembler assembler;
+    const QList<TestPoint> pts = makePoints(4);
+
+    QVERIFY(assembler.feed(makeDatagram(5000, 0, pts, 0, 1, 0, 4)).has_value());
+    // The sender restarted and counts from zero again: these scans must not be taken for late ones
+    const auto first = assembler.feed(makeDatagram(0, 0, pts, 0, 1, 0, 4));
+    QVERIFY(first.has_value());
+    QCOMPARE(first->sequence, quint32(0));
+    QVERIFY(assembler.feed(makeDatagram(1, 0, pts, 0, 1, 0, 4)).has_value());
+    QCOMPARE(assembler.completedFrames(), quint64(3));
+    QCOMPARE(assembler.badPackets(), quint64(0));
+}
+
 void EpclFrameAssemblerTest::_testBadMagicAndVersion()
 {
     EpclFrameAssembler assembler;
