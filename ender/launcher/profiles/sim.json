@@ -1,23 +1,18 @@
 {
   "name": "sim",
-  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README). Alle vier Schritte lassen sich einzeln stoppen. Die Simulation merkt sich die PID ihrer Shell in /tmp/ender_sim.pid, ender/sim/stop_tree.sh beendet dann den ganzen Prozessbaum. Den Container zu stoppen beendet auch alles danach.",
+  "_comment": "Simulation auf dem Linux-Rechner. Die Befehle sl und launch_super sind zsh-Funktionen aus Birks devcontainer und hier noch nicht gegen die echte Sim geprueft (siehe README). Einzeln stoppbar sind der Planer (SIGINT an den ros2 launch, ungeprueft) und die Ender-Nodes; Container, Simulation und Planer lassen sich mit dem allgemeinen stop beenden.",
   "steps": [
     {
       "name": "Container",
       "run": "ender/sim/start_sim_container.sh --detach",
-      "timeout": 120,
-      "stop": "docker stop ender-sim",
-      "stop_timeout": 60,
-      "stop_ends_all": true
+      "timeout": 120
     },
     {
       "name": "Simulation",
-      "run": "docker exec -d -u devuser -w /workspaces/drone-project ender-sim zsh -ic 'echo $$ > /tmp/ender_sim.pid; sl'",
+      "run": "docker exec -d -u devuser -w /workspaces/drone-project ender-sim zsh -ic 'sl'",
       "timeout": 30,
       "wait_for": "docker exec -u devuser ender-sim zsh -ic 'ros2 topic list 2>/dev/null | grep -q cloud_registered_body'",
-      "wait_timeout": 240,
-      "stop": "docker exec -u devuser -w /workspaces/ender-qgc ender-sim ender/sim/stop_tree.sh /tmp/ender_sim.pid 20",
-      "stop_timeout": 60
+      "wait_timeout": 240
     },
     {
       "name": "Planer (SUPER)",

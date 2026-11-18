@@ -60,8 +60,6 @@ class Step:
     optional: bool = False
     stop: str | None = None  # how to stop only this step, if that is possible on its own
     stop_timeout: float = 30.0
-    # Stopping this step takes everything after it down too (the container)
-    stop_ends_all: bool = False
 
 
 @dataclass(frozen=True)
@@ -82,7 +80,6 @@ def _step_from_json(raw: dict) -> Step:
         optional=bool(raw.get("optional", False)),
         stop=raw.get("stop"),
         stop_timeout=float(raw.get("stop_timeout", 30.0)),
-        stop_ends_all=bool(raw.get("stop_ends_all", False)),
     )
 
 
@@ -275,9 +272,6 @@ class Launcher:
                 self._message = _short(f"{step.name} stoppen: {tail or f'Exit-Code {code}'}")
             return
         self._set_step(index, "pending", "")
-        if step.stop_ends_all:
-            for later in range(index + 1, len(self._steps)):
-                self._set_step(later, "pending", "")
 
     def _stop_sequence(self, previous: threading.Thread | None, client_ip: str) -> None:
         if previous is not None:
