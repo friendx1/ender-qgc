@@ -5,7 +5,6 @@
     python launcher_client.py 127.0.0.1 start --watch     # run all steps that are not done yet, follow them
     python launcher_client.py 127.0.0.1 step 2 --watch    # run only step 2 (number as in status, or its name)
     python launcher_client.py 127.0.0.1 step Planer --watch
-    python launcher_client.py 127.0.0.1 stop-step Nodes   # stop only this step (number or name, if the profile says how)
     python launcher_client.py 127.0.0.1 stop-super        # shortcut: stop only the planner (SUPER)
     python launcher_client.py 127.0.0.1 stop-nodes        # shortcut: stop only the Ender nodes
     python launcher_client.py 127.0.0.1 stop
@@ -84,9 +83,9 @@ def main() -> int:
     parser.add_argument("host")
     parser.add_argument(
         "command",
-        choices=["start", "stop", "status", "step", "stop-step", "stop-super", "stop-nodes"],
+        choices=["start", "stop", "status", "step", "stop-super", "stop-nodes"],
     )
-    parser.add_argument("step", nargs="?", help="step number or name (for step and stop-step)")
+    parser.add_argument("step", nargs="?", help="step number or name (only for step)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--token", default="")
     parser.add_argument(
@@ -101,7 +100,7 @@ def main() -> int:
         args.command, args.step = "stop-step", SHORTCUTS[args.command]
     needs_step = args.command in ("step", "stop-step")
     if needs_step != (args.step is not None):
-        parser.error("step and stop-step need a step number or name, the others do not")
+        parser.error("step needs a step number or name, the others do not")
 
     seq = int(time.time()) % 1_000_000
     step_index = None

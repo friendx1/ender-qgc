@@ -20,7 +20,7 @@ echte Drohne fehlt noch.
 - `step <Nr>` führt nur diesen einen Schritt aus (auch wenn er schon fertig ist, dann startet er neu). So startest du die
   Prozesse einzeln nacheinander. Es wird nicht geprüft, ob die Schritte davor schon liefen, die Reihenfolge ist deine
   Sache.
-- `stop_step <Nr>` beendet nur diesen Schritt, wenn das Profil dafür einen eigenen Befehl (`stop`) kennt. Die anderen
+- `stop_step <Nr>` beendet nur diesen Schritt (im Test-Client: `stop-super` und `stop-nodes`), wenn das Profil dafür einen eigenen Befehl (`stop`) kennt. Die anderen
   Schritte bleiben, wie sie sind. Im Sim-Profil geht das für den Planer (SUPER) und die Ender-Nodes, Container und Simulation beendest du mit dem
   allgemeinen `stop`.
 - Schritte behalten ihren Zustand (pending, running, ok, failed). Ein Häkchen heißt nur, dass der Schritt gestartet wurde
