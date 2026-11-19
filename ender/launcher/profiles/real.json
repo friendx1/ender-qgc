@@ -1,0 +1,49 @@
+{
+  "name": "real",
+  "_comment": "Echte Drohne (Onboard-PC), Container reverent_fermat, Birks Skripte unveraendert. Die Ender-Nodes starten im Block von start_real.sh (tmux-Fenster 6-8), deshalb gibt es keinen eigenen Schritt. Die Wartebedingungen pruefen Prozesse und Ports statt Topics, weil der Dienst jede Pruefung nach 5 s abbricht und ros2 unter Zenoh laenger braucht. ACHTUNG: noch KEIN stop_guard, und ein erneutes Start/Neu der Wahrnehmung ruft cleanup.sh auf und beendet auch Planer und Ender-Nodes (der Guard gilt nur fuer Stoppen). Nur am Boden ohne Propeller testen.",
+  "steps": [
+    {
+      "name": "Container",
+      "run": "docker start reverent_fermat",
+      "timeout": 60,
+      "wait_for": "docker exec -u devuser reverent_fermat true",
+      "wait_timeout": 30
+    },
+    {
+      "name": "Flight Controller (USB)",
+      "run": "docker exec -u devuser reverent_fermat /workspaces/drone-project/scripts/shell/detect_fc_port.sh",
+      "timeout": 20
+    },
+    {
+      "name": "Zenoh-Router",
+      "run": "docker exec -u devuser -w /workspaces/drone-project reverent_fermat zsh /workspaces/drone-project/scripts/zsh/zenoh.zsh start air --no-attach",
+      "timeout": 30,
+      "wait_for": "docker exec -u devuser reverent_fermat zsh /workspaces/drone-project/scripts/zsh/zenoh.zsh is-running",
+      "wait_timeout": 15
+    },
+    {
+      "name": "Wahrnehmung",
+      "run": "docker exec -d -e TERM=xterm-256color -u devuser -w /workspaces/drone-project reverent_fermat zsh -ic 'sr'",
+      "timeout": 30,
+      "wait_for": "docker exec -u devuser reverent_fermat pgrep -f mission_real.launch.py && ss -ltn | grep -q ':19902 '",
+      "wait_timeout": 150
+    },
+    {
+      "name": "Planer (SUPER)",
+      "run": "docker exec -d -e TERM=xterm-256color -u devuser -w /workspaces/drone-project reverent_fermat zsh -ic 'launch_super'",
+      "timeout": 30,
+      "wait_for": "docker exec -u devuser reverent_fermat pgrep -f super_planner.launch.py",
+      "wait_timeout": 60,
+      "stop": "docker exec -u devuser reverent_fermat zsh -ic \"pkill -INT -f '[s]uper_planner.launch.py'\"",
+      "stop_timeout": 30
+    }
+  ],
+  "stop_steps": [
+    {
+      "name": "Wahrnehmung beenden (cleanup)",
+      "run": "docker exec -u devuser -w /workspaces/drone-project reverent_fermat zsh -ic '/workspaces/drone-project/scripts/shell/cleanup.sh'",
+      "timeout": 60,
+      "optional": true
+    }
+  ]
+}

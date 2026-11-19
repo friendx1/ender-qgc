@@ -363,6 +363,15 @@ class ProfileTest(unittest.TestCase):
         stoppable = [s.name for s in profile.steps if s.stop]
         self.assertEqual(stoppable, ["Planer (SUPER)", "Ender-Nodes"])
 
+    def test_real_profile_loads(self) -> None:
+        profile = load_profile(Path(__file__).parent / "profiles" / "real.json")
+        self.assertEqual(profile.name, "real")
+        self.assertEqual(
+            [s.name for s in profile.steps],
+            ["Container", "Flight Controller (USB)", "Zenoh-Router", "Wahrnehmung", "Planer (SUPER)"],
+        )
+        self.assertEqual([s.name for s in profile.steps if s.stop], ["Planer (SUPER)"])
+
 
 if __name__ == "__main__":
     unittest.main()

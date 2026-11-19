@@ -1,0 +1,15 @@
+[Unit]
+Description=Ender Starter-Dienst (UDP 19903, Profil real)
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+User=birk
+WorkingDirectory=/home/birk/drone-project/ender-ws/ender-qgc
+ExecStart=/usr/bin/python3 ender/launcher/ender_launcher.py --profile real
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

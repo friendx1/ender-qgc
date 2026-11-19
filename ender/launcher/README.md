@@ -6,7 +6,8 @@ starten oder **jeden Schritt einzeln nacheinander**, um beim Fehlersuchen genau 
 Buttons dafür (Etappe 2).
 
 Stand: **Etappe 1** (Dienst, Sim-Profil, Test-Client, Tests) und **Etappe 2** (Button "Prozesse" mit Liste in der
-Punktwolken-Ansicht der App, `src/PointCloud/LauncherClient.*`). Das Profil für die echte Drohne fehlt noch.
+Punktwolken-Ansicht der App, `src/PointCloud/LauncherClient.*`). Das Profil für die echte Drohne (`profiles/real.json`,
+dazu `systemd/ender-launcher.service`) ist geschrieben, aber noch nicht auf der Drohne getestet.
 
 ## Was er tut und was nicht
 
@@ -76,9 +77,11 @@ Sim-Profils nicht, denn `sl` und `launch_super` stammen aus Birks Container und 
 1. Sim: Schritte im Profil an die echten Befehle anpassen, bis `start` bis `running` durchläuft.
 2. Etappe 2 in der Sim auf dem Laptop und der Funke prüfen. Für die echte Drohne: "Stoppen" im Flug sperren, solange die
    Drohne scharf ist.
-3. Profil `real` für den Onboard-PC (Zenoh-Router, `sr`, Nodes, optional SUPER), Dienst per systemd beim Einschalten.
-   Dafür brauchen wir Birks Skripte `start_real.sh`, `start_zenoh` und die Definition von `launch_super`.
-   Beachten: `sr` ruft `cleanup.sh` auf (beendet tmux und `ros2`-Prozesse), unsere Nodes müssen danach starten.
+3. Profil `real` auf dem Onboard-PC prüfen (Container, Flight Controller, Zenoh-Router, `sr` mit den Ender-Nodes im
+   Block von `start_real.sh`, SUPER) und den Dienst per systemd beim Einschalten starten (`systemd/ender-launcher.service`).
+   Beachten: `sr` ruft `cleanup.sh` auf (beendet tmux und `ros2`-Prozesse). Der `stop_guard` sperrt nur `stop` und
+   `stop_step`, nicht das erneute Starten (`start`, `step`) der Wahrnehmung, das über `cleanup.sh` im Flug ebenfalls
+   alles beendet. Der Dienst lauscht standardmäßig auf allen Schnittstellen (`--bind`, `--token` sind vorhanden).
 
 ## Protokoll ELCH v1 (UDP, JSON, Port 19903)
 
