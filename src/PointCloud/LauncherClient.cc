@@ -68,6 +68,7 @@ QVariantList LauncherClient::steps() const
             {QStringLiteral("state"), step.state},
             {QStringLiteral("detail"), step.detail},
             {QStringLiteral("canStop"), step.canStop},
+            {QStringLiteral("confirmRestart"), step.confirmRestart},
         });
     }
     return list;

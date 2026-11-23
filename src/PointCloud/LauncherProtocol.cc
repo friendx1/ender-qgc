@@ -43,6 +43,7 @@ std::optional<LauncherReply> LauncherProtocol::decodeReply(const QByteArray& dat
         info.state = step.value(QStringLiteral("state")).toString();
         info.detail = step.value(QStringLiteral("detail")).toString();
         info.canStop = step.value(QStringLiteral("can_stop")).toBool();
+        info.confirmRestart = step.value(QStringLiteral("confirm")).toBool();
         reply.steps.append(info);
     }
     return reply;

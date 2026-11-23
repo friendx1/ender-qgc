@@ -33,7 +33,7 @@ void LauncherProtocolTest::_testDecodeReply()
     const QByteArray datagram =
         R"json({"v":1,"seq":7,"profile":"sim","state":"partial","message":"Planer: Zeitueberschreitung","steps":[)json"
         R"json({"name":"Container","state":"ok","detail":"","can_stop":false},)json"
-        R"json({"name":"Planer (SUPER)","state":"failed","detail":"kein Topic","can_stop":true}]})json";
+        R"json({"name":"Planer (SUPER)","state":"failed","detail":"kein Topic","can_stop":true,"confirm":true}]})json";
 
     const auto reply = LauncherProtocol::decodeReply(datagram);
 
@@ -46,9 +46,11 @@ void LauncherProtocolTest::_testDecodeReply()
     QCOMPARE(reply->steps[0].name, QString("Container"));
     QCOMPARE(reply->steps[0].state, QString("ok"));
     QVERIFY(!reply->steps[0].canStop);
+    QVERIFY(!reply->steps[0].confirmRestart);
     QCOMPARE(reply->steps[1].state, QString("failed"));
     QCOMPARE(reply->steps[1].detail, QString("kein Topic"));
     QVERIFY(reply->steps[1].canStop);
+    QVERIFY(reply->steps[1].confirmRestart);
 }
 
 void LauncherProtocolTest::_testBadRepliesAreIgnored()

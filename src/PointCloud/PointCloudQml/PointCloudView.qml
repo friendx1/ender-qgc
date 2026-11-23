@@ -111,6 +111,23 @@ Rectangle {
 
     // The list of the processes on the onboard computer (starter service), opened with the button "Prozesse"
     property bool _showLauncher: false
+    on_ShowLauncherChanged: {
+        if (!_showLauncher) {
+            _closeConfirm()
+        }
+    }
+
+    // True while the vehicle is armed (set by the Fly View). Stopping or restarting processes then asks first.
+    property bool vehicleArmed: false
+
+    // Stopping or restarting processes while they run (or the vehicle flies) asks first: the person has to slide the
+    // handle to the right. _confirmAction is "" (nothing asked), startAll, stopAll, startStep or stopStep.
+    property string _confirmAction: ""
+    property int _confirmIndex: -1
+    property real _slideProgress: 0
+    property bool _slideDragging: false
+    property real _slideGrab: 0
+    readonly property real _slideDoneAt: 0.9
 
     property bool _hasGoal: false
     property real _goalSceneX: 0
@@ -412,6 +429,10 @@ Rectangle {
         ]
 
         onPressed: (points) => {
+            if (root._confirmAction !== "") {
+                root._slidePress(points[0].x, points[0].y)
+                return
+            }
             if (touchA.pressed && touchB.pressed) {
                 _multi = true
                 _hasMid = false
@@ -424,6 +445,10 @@ Rectangle {
         }
 
         onUpdated: (points) => {
+            if (root._confirmAction !== "") {
+                root._slideMove(touchA.pressed ? touchA.x : touchB.x)
+                return
+            }
             if (touchA.pressed && touchB.pressed) {
                 var distance = Math.hypot(touchA.x - touchB.x, touchA.y - touchB.y)
                 if (_lastPinchDistance > 0 && distance > 0) {
@@ -464,6 +489,12 @@ Rectangle {
         onReleased: (points) => {
             _lastPinchDistance = 0
             _hasMid = false
+            if (root._confirmAction !== "") {
+                if (!touchA.pressed && !touchB.pressed && points.length > 0) {
+                    root._slideRelease(points[0].x, points[0].y)
+                }
+                return
+            }
             if (!touchA.pressed && !touchB.pressed) {
                 var isTap = !_multi && _travel < root._tapMaxTravel && (Date.now() - _pressTime) < root._tapMaxDurationMs
                 _multi = false
@@ -477,6 +508,7 @@ Rectangle {
             _lastPinchDistance = 0
             _hasMid = false
             _multi = false
+            root._slideCanceled()
         }
     }
 
@@ -714,28 +746,148 @@ Rectangle {
             _showLauncher = false
         } else if (_hit(launcherStartAll, x, y)) {
             if (ready) {
-                launcher.startAll()
+                _requestAction("startAll", -1)
             }
         } else if (_hit(launcherStopAll, x, y)) {
             if (ready) {
-                launcher.stopAll()
+                _requestAction("stopAll", -1)
             }
         } else {
             for (var i = 0; i < launcherSteps.count; i++) {
                 var row = launcherSteps.itemAt(i)
                 if (row && _hit(row.startButton, x, y)) {
                     if (ready) {
-                        launcher.startStep(i)
+                        _requestAction("startStep", i)
                     }
                     break
                 }
                 if (row && _hit(row.stopButton, x, y)) {
                     if (ready) {
-                        launcher.stopStep(i)
+                        _requestAction("stopStep", i)
                     }
                     break
                 }
             }
+        }
+    }
+
+    // Whether the action has to be confirmed with the slide. Stopping asks while anything runs or the vehicle is armed.
+    // Starting a step asks if the vehicle is armed or if it ends other processes while it runs already (the perception
+    // runs cleanup.sh first). "Alles starten" only starts what is missing and asks only in the air.
+    function _needsConfirm(action, index) {
+        if (action === "stopAll" || action === "stopStep") {
+            return vehicleArmed || launcher.state !== "stopped"
+        }
+        if (action === "startStep") {
+            var step = launcher.steps[index]
+            return vehicleArmed || (step !== undefined && step.confirmRestart && step.state === "ok")
+        }
+        return vehicleArmed
+    }
+
+    function _requestAction(action, index) {
+        if (!_needsConfirm(action, index)) {
+            _runAction(action, index)
+            return
+        }
+        _slideDragging = false
+        _slideProgress = 0
+        _confirmIndex = index
+        _confirmAction = action
+        confirmTimer.restart()
+    }
+
+    function _runAction(action, index) {
+        switch (action) {
+        case "startAll": launcher.startAll(); break
+        case "stopAll": launcher.stopAll(); break
+        case "startStep": launcher.startStep(index); break
+        case "stopStep": launcher.stopStep(index); break
+        }
+    }
+
+    function _closeConfirm() {
+        confirmTimer.stop()
+        slideReset.stop()
+        _slideDragging = false
+        _slideProgress = 0
+        _confirmAction = ""
+        _confirmIndex = -1
+    }
+
+    function _confirmStepName() {
+        var steps = launcher.steps
+        return (_confirmIndex >= 0 && _confirmIndex < steps.length) ? steps[_confirmIndex].name : ""
+    }
+
+    function _confirmTitle() {
+        switch (_confirmAction) {
+        case "stopAll": return qsTr("Alles stoppen?")
+        case "stopStep": return qsTr("%1 stoppen?").arg(_confirmStepName())
+        case "startStep": return qsTr("%1 neu starten?").arg(_confirmStepName())
+        case "startAll": return qsTr("Alles starten?")
+        default: return ""
+        }
+    }
+
+    function _confirmText() {
+        switch (_confirmAction) {
+        case "stopAll": return qsTr("Beendet die Wahrnehmung, den Planer (SUPER) und die Ender-Nodes. Container und Zenoh-Router laufen weiter.")
+        case "stopStep": return qsTr("Beendet nur diesen Schritt. Alles andere läuft weiter.")
+        case "startStep":
+            var steps = launcher.steps
+            var step = (_confirmIndex >= 0 && _confirmIndex < steps.length) ? steps[_confirmIndex] : undefined
+            return (step !== undefined && step.confirmRestart)
+                ? qsTr("Beendet vorher alle laufenden Prozesse der Wahrnehmung, auch Planer und Ender-Nodes, und startet sie neu.")
+                : qsTr("Startet diesen Schritt.")
+        case "startAll": return qsTr("Startet die fehlenden Schritte. Die Wahrnehmung beendet dabei vorher alle laufenden Prozesse.")
+        default: return ""
+        }
+    }
+
+    // The slide: the handle is dragged with the same touch area as everything else, a MouseArea does not get the touch
+    // of the radio. Done when the handle reaches _slideDoneAt of its way, otherwise it springs back.
+    function _slidePress(x, y) {
+        if (_hit(slideHandle, x, y)) {
+            slideReset.stop()
+            _slideDragging = true
+            _slideGrab = x - slideHandle.mapToItem(touchArea, 0, 0).x
+            confirmTimer.restart()
+        }
+    }
+
+    function _slideMove(x) {
+        if (!_slideDragging) {
+            return
+        }
+        var left = slideTrack.mapToItem(touchArea, 0, 0).x + slideTrack.pad
+        var travel = Math.max(1, slideTrack.width - slideHandle.width - 2 * slideTrack.pad)
+        _slideProgress = Math.max(0, Math.min(1, (x - _slideGrab - left) / travel))
+        confirmTimer.restart()
+    }
+
+    function _slideRelease(x, y) {
+        if (_slideDragging) {
+            _slideDragging = false
+            if (_slideProgress >= _slideDoneAt) {
+                var action = _confirmAction
+                var index = _confirmIndex
+                _closeConfirm()
+                if (launcher.reachable && !launcher.busy) {
+                    _runAction(action, index)
+                }
+            } else {
+                slideReset.start()
+            }
+        } else if (_hit(confirmCancel, x, y) || !_hit(confirmPanel, x, y)) {
+            _closeConfirm()
+        }
+    }
+
+    function _slideCanceled() {
+        if (_slideDragging) {
+            _slideDragging = false
+            slideReset.start()
         }
     }
 
@@ -1025,6 +1177,119 @@ Rectangle {
                     height: 48
                     label: qsTr("Schließen")
                 }
+            }
+        }
+    }
+
+    // Closes the question after a while without a touch, nothing is stopped then
+    Timer {
+        id: confirmTimer
+        interval: 10000
+        onTriggered: root._closeConfirm()
+    }
+
+    NumberAnimation {
+        id: slideReset
+        target: root
+        property: "_slideProgress"
+        to: 0
+        duration: 150
+    }
+
+    // Question before stopping or restarting processes: warning, what happens, slide to the right to go on
+    Rectangle {
+        id: confirmPanel
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 24, 460)
+        height: confirmColumn.implicitHeight + 24
+        radius: 8
+        color: "#2a1517"
+        border.color: "#ff6060"
+        border.width: 2
+        visible: root._confirmAction !== "" && root._showLauncher && root._controlsVisible && !root.goalMode
+
+        Column {
+            id: confirmColumn
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 12
+            spacing: 10
+
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                color: "#ff6060"
+                font.pixelSize: 18
+                font.bold: true
+                text: root._confirmTitle()
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                color: "white"
+                font.pixelSize: 15
+                text: qsTr("Abbruch von Prozessen in der Luft kann zum Absturz führen.")
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                color: "#aab4be"
+                font.pixelSize: 14
+                text: root._confirmText()
+            }
+            Text {
+                width: parent.width
+                visible: root.vehicleArmed
+                color: "#e8a34a"
+                font.pixelSize: 14
+                text: qsTr("Die Drohne ist armiert.")
+            }
+
+            Rectangle {
+                id: slideTrack
+                property real pad: 3
+                width: parent.width
+                height: 56
+                radius: height / 2
+                color: "#3a1f22"
+                border.color: "#ff6060"
+                border.width: 1
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: slideHandle.x + slideHandle.width + 10
+                    width: parent.width - x - 10
+                    elide: Text.ElideRight
+                    color: "white"
+                    opacity: 1 - root._slideProgress
+                    font.pixelSize: 15
+                    text: qsTr("Zum Bestätigen nach rechts wischen")
+                }
+
+                Rectangle {
+                    id: slideHandle
+                    x: slideTrack.pad + root._slideProgress * (slideTrack.width - width - 2 * slideTrack.pad)
+                    y: slideTrack.pad
+                    width: 72
+                    height: slideTrack.height - 2 * slideTrack.pad
+                    radius: height / 2
+                    color: root._slideProgress >= root._slideDoneAt ? "#7ee06a" : "#ff6060"
+
+                    Text {
+                        anchors.centerIn: parent
+                        color: "#10151a"
+                        font.pixelSize: 22
+                        font.bold: true
+                        text: "\u203A\u203A\u203A"
+                    }
+                }
+            }
+
+            GoalButton {
+                id: confirmCancel
+                height: 48
+                label: qsTr("Abbrechen")
             }
         }
     }

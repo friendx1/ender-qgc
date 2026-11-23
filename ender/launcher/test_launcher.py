@@ -134,12 +134,15 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(snapshot["state"], "running")
         self.assertIn("Drohne ist scharf", snapshot["message"])
 
-    def test_stop_when_stopped_does_nothing(self) -> None:
+    def test_stop_when_stopped_still_runs_the_stop_steps(self) -> None:
+        # After a restart of the service the state is "stopped" while the processes may still run
         launcher = self.make([Step("a", "true")], [Step("s", "echo x > s")])
         launcher.stop("10.0.0.1")
-        time.sleep(0.1)
-        self.assertEqual(launcher.snapshot()["state"], "stopped")
-        self.assertFalse((self.dir / "s").exists())
+        deadline = time.time() + 5
+        while not (self.dir / "s").exists() and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertTrue((self.dir / "s").exists())
+        self.assertEqual(wait_for_state(launcher, ("stopped",))["state"], "stopped")
 
     def test_start_again_after_error(self) -> None:
         launcher = self.make([Step("a", "test -f go")])
@@ -156,6 +159,10 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual([s["name"] for s in snapshot["steps"]], ["a", "b"])
         self.assertEqual([s["state"] for s in snapshot["steps"]], ["pending", "pending"])
         self.assertEqual([s["can_stop"] for s in snapshot["steps"]], [False, True])
+
+    def test_step_reports_the_restart_confirmation(self) -> None:
+        launcher = self.make([Step("a", "true"), Step("b", "true", confirm_restart=True)])
+        self.assertEqual([s.get("confirm", False) for s in launcher.snapshot()["steps"]], [False, True])
 
     def test_single_step_runs_alone(self) -> None:
         launcher = self.make([Step("a", "echo a >> log"), Step("b", "echo b >> log")])

@@ -13,7 +13,7 @@ the ROS container. The ground station talks to it over UDP (protocol "ELCH" v1, 
 Every request is answered with the current state, so a lost datagram is simply asked again:
 
     {"v":1,"seq":9,"profile":"sim","state":"partial","message":"",
-     "steps":[{"name":"Container","state":"ok","detail":"","can_stop":false}, ...]}
+     "steps":[{"name":"Container","state":"ok","detail":"","can_stop":false}, ...]}  ("confirm":true only on steps that ask first)
 
 state is one of stopped (no step done), partial (some steps done), running (all steps done), starting and stopping
 (a worker is busy), error (a step failed). Step states are pending, running, ok, failed. They stay as they are
@@ -60,6 +60,7 @@ class Step:
     optional: bool = False
     stop: str | None = None  # how to stop only this step, if that is possible on its own
     stop_timeout: float = 30.0
+    confirm_restart: bool = False  # starting this step again ends other processes too, the app asks first
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ def _step_from_json(raw: dict) -> Step:
         optional=bool(raw.get("optional", False)),
         stop=raw.get("stop"),
         stop_timeout=float(raw.get("stop_timeout", 30.0)),
+        confirm_restart=bool(raw.get("confirm_restart", False)),
     )
 
 
@@ -111,6 +113,7 @@ class Launcher:
         self._lock = threading.Lock()
         self._steps = [
             {"name": s.name, "state": "pending", "detail": "", "can_stop": s.stop is not None}
+            | ({"confirm": True} if s.confirm_restart else {})  # only sent when set, the reply must fit one datagram
             for s in profile.steps
         ]
         self._busy = ""  # "starting" or "stopping" while a worker runs
@@ -156,7 +159,8 @@ class Launcher:
 
     def stop(self, client_ip: str) -> None:
         with self._lock:
-            if self._busy == "stopping" or self._state_locked() == "stopped":
+            # Also when the state says "stopped": after a restart of the service it does not know what still runs
+            if self._busy == "stopping":
                 return
         if not self._guard_allows_stop(client_ip):
             return

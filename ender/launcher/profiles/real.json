@@ -1,6 +1,6 @@
 {
   "name": "real",
-  "_comment": "Echte Drohne (Onboard-PC), Container reverent_fermat, Birks Skripte unveraendert. Die Ender-Nodes starten im Block von start_real.sh (tmux-Fenster 6-8), deshalb gibt es keinen eigenen Schritt. Die Wartebedingungen pruefen Prozesse und Ports statt Topics, weil der Dienst jede Pruefung nach 5 s abbricht und ros2 unter Zenoh laenger braucht. ACHTUNG: noch KEIN stop_guard, und ein erneutes Start/Neu der Wahrnehmung ruft cleanup.sh auf und beendet auch Planer und Ender-Nodes (der Guard gilt nur fuer Stoppen). Nur am Boden ohne Propeller testen.",
+  "_comment": "Echte Drohne (Onboard-PC), Container reverent_fermat, Birks Skripte unveraendert. Die Ender-Nodes starten im Block von start_real.sh (tmux-Fenster 6-8), deshalb gibt es keinen eigenen Schritt. Die Wartebedingungen pruefen Prozesse und Ports statt Topics, weil der Dienst jede Pruefung nach 5 s abbricht und ros2 unter Zenoh laenger braucht. Ein erneutes Start/Neu der Wahrnehmung ruft cleanup.sh auf und beendet auch Planer und Ender-Nodes, deshalb steht dort confirm_restart: die App fragt dann per Slide-Regler nach. Auch Stoppen fragt die App ab, wenn Prozesse laufen oder die Drohne armiert ist; der Dienst selbst sperrt nichts.",
   "steps": [
     {
       "name": "Container",
@@ -23,6 +23,7 @@
     },
     {
       "name": "Wahrnehmung",
+      "confirm_restart": true,
       "run": "docker exec -d -e TERM=xterm-256color -u devuser -w /workspaces/drone-project reverent_fermat zsh -ic 'sr'",
       "timeout": 30,
       "wait_for": "docker exec -u devuser reverent_fermat pgrep -f mission_real.launch.py && ss -ltn | grep -q ':19902 '",

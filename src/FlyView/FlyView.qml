@@ -94,6 +94,7 @@ Item {
         PointCloudView {
             id:         cloudControl
             radius:     0
+            vehicleArmed: _activeVehicle ? _activeVehicle.armed : false
             topInset:   toolbar.height
         }
 

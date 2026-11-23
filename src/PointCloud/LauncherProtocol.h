@@ -13,6 +13,7 @@ struct LauncherStepInfo
     QString state;   ///< pending, running, ok or failed
     QString detail;  ///< Short error text or note, may be empty
     bool canStop = false;
+    bool confirmRestart = false;  ///< Starting it again ends other processes too, the app asks first
 };
 
 /// The launcher's answer: overall state and the steps
@@ -29,7 +30,7 @@ struct LauncherReply
 /// The service is ender/launcher/ender_launcher.py, its README describes the protocol.
 ///
 /// Request: {"v":1,"seq":7,"cmd":"start"|"stop"|"status"|"step"|"stop_step","step":2,"token":"..."}
-/// Reply:   {"v":1,"seq":7,"profile":"sim","state":"partial","message":"","steps":[{"name":..,"state":..,"detail":..,"can_stop":..}]}
+/// Reply:   {"v":1,"seq":7,"profile":"sim","state":"partial","message":"","steps":[{"name":..,"state":..,"detail":..,"can_stop":..,"confirm":..}]}
 /// Pure logic, no sockets, so it can be unit tested without a network.
 class LauncherProtocol
 {

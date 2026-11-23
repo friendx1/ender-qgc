@@ -54,7 +54,7 @@ public:
     /// Hint from the launcher or about the connection, may be empty
     QString message() const { return _message; }
 
-    /// One map per step: name, state, detail, canStop
+    /// One map per step: name, state, detail, canStop, confirmRestart
     QVariantList steps() const;
 
     /// Runs all steps that are not done yet, one after another
